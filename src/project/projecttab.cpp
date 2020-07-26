@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -30,13 +31,15 @@
 #include "catalog.h"
 #include "lokalize_debug.h"
 
-#include <KLocalizedString>
 #include <KActionCategory>
 #include <KActionCollection>
-#include <KStandardAction>
-#include <KXMLGUIFactory>
-#include <KProcess>
+#include <KGuiItem>
+#include <KLocalizedString>
 #include <KMessageBox>
+#include <KProcess>
+#include <KStandardAction>
+#include <KStandardGuiItem>
+#include <KXMLGUIFactory>
 
 #include <QLineEdit>
 #include <QIcon>
@@ -50,6 +53,7 @@
 #include <QStackedLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QInputDialog>
 
 ProjectTab::ProjectTab(QWidget *parent)
     : LokalizeSubwindowBase2(parent)
@@ -77,8 +81,8 @@ ProjectTab::ProjectTab(QWidget *parent)
                                     "If you need more information or documentation, then a visit to "
                                     "<a href=\"%2\">%2</a> "
                                     "will provide you with what you need.</html>",
-                                    QLatin1String("http://community.kde.org/Get_Involved"),
-                                    QLatin1String("http://techbase.kde.org/")), welcomeWidget);
+                                    QLatin1String("https://community.kde.org/Get_Involved"),
+                                    QLatin1String("https://techbase.kde.org/")), welcomeWidget);
     about->setAlignment(Qt::AlignCenter);
     about->setWordWrap(true);
     about->setOpenExternalLinks(true);
@@ -123,7 +127,7 @@ ProjectTab::ProjectTab(QWidget *parent)
 
     m_filterEdit->setClearButtonEnabled(true);
     m_filterEdit->setPlaceholderText(i18n("Quick search..."));
-    m_filterEdit->setToolTip(i18nc("@info:tooltip", "Activated by Ctrl+L.") % ' ' % i18nc("@info:tooltip", "Accepts regular expressions"));
+    m_filterEdit->setToolTip(i18nc("@info:tooltip", "Activated by Ctrl+L.") + ' ' + i18nc("@info:tooltip", "Accepts regular expressions"));
     connect(m_filterEdit, &QLineEdit::textChanged, this, &ProjectTab::setFilterRegExp, Qt::QueuedConnection);
     new QShortcut(Qt::CTRL + Qt::Key_L, this, SLOT(setFocus()), 0, Qt::WidgetWithChildrenShortcut);
 
@@ -208,14 +212,13 @@ ProjectTab::ProjectTab(QWidget *parent)
 
 }
 
-ProjectTab::~ProjectTab()
-{
-    //qCWarning(LOKALIZE_LOG)<<"destroyed";
-}
-
 void ProjectTab::showRealProjectOverview()
 {
     m_stackedLayout->setCurrentIndex(1);
+}
+void ProjectTab::showWelcomeScreen()
+{
+    m_stackedLayout->setCurrentIndex(0);
 }
 
 void ProjectTab::toggleTranslatedFiles()
@@ -266,6 +269,7 @@ void ProjectTab::contextMenuEvent(QContextMenuEvent *event)
     menu->addAction(i18nc("@action:inmenu", "Add to translation memory"), this, &ProjectTab::scanFilesToTM);
 
     menu->addAction(i18nc("@action:inmenu", "Search in files"), this, &ProjectTab::searchInFiles);
+    menu->addAction(i18nc("@action:inmenu", "Add a comment"), this, &ProjectTab::addComment);
     if (Settings::self()->pologyEnabled()) {
         menu->addAction(i18nc("@action:inmenu", "Launch Pology on files"), this, &ProjectTab::pologyOnFiles);
     }
@@ -279,7 +283,6 @@ void ProjectTab::contextMenuEvent(QContextMenuEvent *event)
 //         menu.addAction(i18n("Force Scanning"),this,&ProjectTab::slotForceStats);
 //
 //     }
-
     menu->popup(event->globalPos());
 }
 
@@ -287,6 +290,41 @@ void ProjectTab::contextMenuEvent(QContextMenuEvent *event)
 void ProjectTab::scanFilesToTM()
 {
     TM::scanRecursive(m_browser->selectedItems(), Project::instance()->projectID());
+}
+
+void ProjectTab::addComment()
+{
+    QStringList files = m_browser->selectedItems();
+    int i = files.size();
+    QStringList previousCommentsTexts = Project::instance()->commentsTexts();
+    QStringList previousCommentsFiles = Project::instance()->commentsFiles();
+    QString previousComment(QStringLiteral(""));
+    if (i >= 1) {
+        //Retrieve previous comment (first one)
+        int existingItem = previousCommentsFiles.indexOf(Project::instance()->relativePath(files.at(0)));
+        if (existingItem != -1 && previousCommentsTexts.count() > existingItem) {
+            previousComment = previousCommentsTexts.at(existingItem);
+        }
+    }
+
+    bool ok;
+    QString newComment = QInputDialog::getText(this, i18n("Project file comment"), i18n("Input a comment for this project file:"), QLineEdit::Normal, previousComment, &ok);
+    if (!ok)
+        return;
+
+    while (--i >= 0) {
+        QString filePath = Project::instance()->relativePath(files.at(i));
+        int existingItem = previousCommentsFiles.indexOf(filePath);
+        if (existingItem != -1 && previousCommentsTexts.count() > existingItem) {
+            previousCommentsTexts[existingItem] = newComment;
+        } else {
+            previousCommentsTexts << newComment;
+            previousCommentsFiles << filePath;
+        }
+    }
+    Project::instance()->setCommentsTexts(previousCommentsTexts);
+    Project::instance()->setCommentsFiles(previousCommentsFiles);
+    Project::instance()->save();
 }
 
 void ProjectTab::searchInFiles(bool templ)
@@ -353,9 +391,30 @@ void ProjectTab::openFile()
 {
     QStringList files = m_browser->selectedItems();
     int i = files.size();
+
+    if (i > 50) {
+        QString caption = i18np("You are about to open %1 file", "You are about to open %1 files", i);
+        QString text = i18n("Opening a large number of files at the same time can make Lokalize unresponsive.")
+                       + QStringLiteral("\n\n")
+                       + i18n("Are you sure you want to open this many files?");
+        auto yes = KGuiItem(
+                       i18np("&Open %1 File", "&Open %1 Files", i),
+                       QStringLiteral("document-open")
+                   );
+        const int answer = KMessageBox::warningYesNo(
+                               this, text, caption, yes, KStandardGuiItem::cancel()
+                           );
+        if (answer != KMessageBox::Yes) {
+            return;
+        }
+    }
+
     while (--i >= 0) {
         if (Catalog::extIsSupported(files.at(i)))  {
-            emit fileOpenRequested(files.at(i), true);
+            if (files.at(i).endsWith(QLatin1String(".pot")))
+                emit fileOpenRequested(Project::instance()->model()->potToPo(files.at(i)).toLocalFile(), true);
+            else
+                emit fileOpenRequested(files.at(i), true);
         }
     }
 }

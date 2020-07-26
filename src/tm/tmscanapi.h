@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -26,8 +27,8 @@
 #define SCANAPI_H
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QUrl>
-#include <QTime>
 #include <QVector>
 
 #include <kjob.h>
@@ -56,13 +57,15 @@ public:
 
 public slots:
     void scanJobFinished(ScanJobFeedingBack*);
+    void scanJobDestroyed();
 protected:
     bool doKill() override;
 
 private:
     QString m_dbName;
-    QTime m_time;
+    QElapsedTimer m_time;
     QVector<ScanJob*> m_jobs;
+    qulonglong m_destroyedJobs = 0;
 };
 }
 

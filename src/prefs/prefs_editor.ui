@@ -11,32 +11,21 @@
    </rect>
   </property>
   <layout class="QGridLayout">
-   <property name="margin">
+   <property name="leftMargin">
+    <number>11</number>
+   </property>
+   <property name="topMargin">
+    <number>11</number>
+   </property>
+   <property name="rightMargin">
+    <number>11</number>
+   </property>
+   <property name="bottomMargin">
     <number>11</number>
    </property>
    <property name="spacing">
     <number>6</number>
    </property>
-   <item row="4" column="0" colspan="2">
-    <spacer>
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item row="0" column="0">
-    <widget class="QCheckBox" name="kcfg_AutoApprove">
-     <property name="text">
-      <string>Set 'approved' status automatically when editing started</string>
-     </property>
-    </widget>
-   </item>
    <item row="1" column="0">
     <widget class="QCheckBox" name="kcfg_MouseWheelGo">
      <property name="toolTip">
@@ -50,6 +39,33 @@
      </property>
     </widget>
    </item>
+   <item row="0" column="0">
+    <widget class="QCheckBox" name="kcfg_AutoApprove">
+     <property name="text">
+      <string>Set 'approved' status automatically when editing started</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="0" colspan="2">
+    <spacer>
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>30</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="4" column="0">
+    <widget class="QCheckBox" name="kcfg_VisualizeSeparators">
+     <property name="text">
+      <string>Visualize separators such as spaces, tabs and new lines in the editor</string>
+     </property>
+    </widget>
+   </item>
    <item row="2" column="0">
     <layout class="QHBoxLayout">
      <item>
@@ -59,6 +75,9 @@
        </property>
        <property name="text">
         <string>Minimum word length for word completion</string>
+       </property>
+       <property name="buddy">
+        <cstring>kcfg_WordCompletionLength</cstring>
        </property>
       </widget>
      </item>
@@ -80,10 +99,10 @@
      </item>
     </layout>
    </item>
-   <item row="3" column="0">
-    <widget class="QCheckBox" name="kcfg_VisualizeSeparators">
+   <item row="5" column="0">
+    <widget class="QCheckBox" name="kcfg_ConvertXMLChars">
      <property name="text">
-      <string>Visualize separators such as spaces, tabs and new lines in the editor</string>
+      <string>Automatically convert XML special characters in TS files</string>
      </property>
     </widget>
    </item>

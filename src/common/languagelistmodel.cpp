@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -104,7 +105,7 @@ QVariant LanguageListModel::data(const QModelIndex& index, int role) const
         if (displayNames.at(index.row()).length())
             return displayNames.at(index.row());
         return QVariant::fromValue<QString>(
-                   displayNames[index.row()] = KConfigGroup(m_systemLangList, code).readEntry("Name") % QStringLiteral(" (") % code % ')');
+                   displayNames[index.row()] = KConfigGroup(m_systemLangList, code).readEntry("Name") + QStringLiteral(" (") + code + ')');
     }
     return QStringListModel::data(index, role);
 }

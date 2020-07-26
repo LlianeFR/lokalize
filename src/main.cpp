@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -61,18 +62,20 @@ int main(int argc, char **argv)
     TM::threadPool()->setMaxThreadCount(1);
     TM::threadPool()->setExpiryTimeout(-1);
     QThreadPool::globalInstance()->setMaxThreadCount(1);
-    KCrash::initialize();
-
+    // Fixes blurry icons with fractional scaling, see https://phabricator.kde.org/D29376
+    QGuiApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
     QApplication app(argc, argv);
+    KCrash::initialize();
     KLocalizedString::setApplicationDomain("lokalize");
     QCommandLineParser parser;
     KAboutData about(QStringLiteral("lokalize"), i18nc("@title", "Lokalize"), LOKALIZE_VERSION, i18n("Computer-aided translation system.\nDo not translate what had already been translated."),
-                     KAboutLicense::GPL, i18nc("@info:credit", "(c) 2007-2015 Nick Shaforostoff\n(c) 1999-2006 The KBabel developers") /*, KLocalizedString(), 0, "shafff@ukr.net"*/);
+                     KAboutLicense::GPL, i18nc("@info:credit", "(c) 2018-2019 Simon Depiets\n(c) 2007-2015 Nick Shaforostoff\n(c) 1999-2006 The KBabel developers") /*, KLocalizedString(), 0, "shafff@ukr.net"*/);
     about.addAuthor(i18n("Nick Shaforostoff"), QString(), QStringLiteral("shaforostoff@gmail.com"));
-    about.addCredit(i18n("Google Inc."), i18n("sponsored development as part of Google Summer Of Code program"), QString(), QStringLiteral("http://google.com"));
+    about.addCredit(i18n("Google Inc."), i18n("sponsored development as part of Google Summer Of Code program"), QString(), QStringLiteral("https://google.com"));
     about.addCredit(i18n("NLNet Foundation"), i18n("sponsored XLIFF-related work"), QString(), QStringLiteral("https://nlnet.nl/"));
-    about.addCredit(i18n("Translate-toolkit"), i18n("provided excellent cross-format converting scripts"), QString(), QStringLiteral("http://translate.sourceforge.net"));
-    about.addCredit(i18n("Viesturs Zarins"), i18n("project tree merging translation+templates"), QStringLiteral("viesturs.zarins@mii.lu.lv"), QString());
+    about.addCredit(i18n("Translate-toolkit"), i18n("provided excellent cross-format converting scripts"), QString(), QStringLiteral("https://toolkit.translatehouse.org"));
+    about.addCredit(i18n("LanguageTool"), i18n("grammar, style and spell checker"), QString(), QStringLiteral("https://toolkit.translatehouse.org"));
+    about.addCredit(i18n("Viesturs Zarins"), i18n("project tree merging translation+templates"), QStringLiteral("https://languagetool.org"), QString());
     about.addCredit(i18n("Stephan Johach"), i18n("bug fixing patches"), QStringLiteral("hunsum@gmx.de"));
     about.addCredit(i18n("Chusslove Illich"), i18n("bug fixing patches"), QStringLiteral("caslav.ilic@gmx.net"));
     about.addCredit(i18n("Jure Repinc"), i18n("testing and bug fixing"), QStringLiteral("jlp@holodeck1.com"));

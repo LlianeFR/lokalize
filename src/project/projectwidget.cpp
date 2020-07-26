@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2015 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -53,6 +54,7 @@ public:
     PoItemDelegate(QObject *parent = 0);
     ~PoItemDelegate() {}
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+    QString displayText(const QVariant & value, const QLocale & locale) const override;
     QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 private:
     KColorScheme m_colorScheme;
@@ -78,7 +80,7 @@ QSize PoItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelI
 
 void PoItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    if (index.column() != ProjectModel::Graph)
+    if (static_cast<ProjectModel::ProjectModelColumns>(index.column()) != ProjectModel::ProjectModelColumns::Graph)
         return QStyledItemDelegate::paint(painter, option, index);
 
     QVariant graphData = index.data(Qt::DisplayRole);
@@ -126,6 +128,12 @@ void PoItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option
         painter->fillRect(option.rect, QBrush(Qt::gray));
 }
 
+// Temporary workaround for Qt bug https://bugreports.qt.io/browse/QTBUG-78094
+// to ensure that large numbers are formatted using a thousands separator
+QString PoItemDelegate::displayText(const QVariant & value, const QLocale & locale) const
+{
+    return QStyledItemDelegate::displayText(value, QLocale::system());
+}
 
 
 
@@ -224,10 +232,10 @@ bool SortFilterProxyModel::lessThan(const QModelIndex& left,
         return false;
     }
 
-    switch (left.column()) {
-    case ProjectModel::FileName:
+    switch (static_cast<ProjectModel::ProjectModelColumns>(left.column())) {
+    case ProjectModel::ProjectModelColumns::FileName:
         return collator.compare(leftFileItem.name(), rightFileItem.name()) < 0;
-    case ProjectModel::Graph: {
+    case ProjectModel::ProjectModelColumns::Graph: {
         QRect leftRect(left.data(Qt::DisplayRole).toRect());
         QRect rightRect(right.data(Qt::DisplayRole).toRect());
 
@@ -260,15 +268,16 @@ bool SortFilterProxyModel::lessThan(const QModelIndex& left,
             return true;
         return false;
     }
-    case ProjectModel::LastTranslator:
-    case ProjectModel::SourceDate:
-    case ProjectModel::TranslationDate:
+    case ProjectModel::ProjectModelColumns::LastTranslator:
+    case ProjectModel::ProjectModelColumns::SourceDate:
+    case ProjectModel::ProjectModelColumns::TranslationDate:
+    case ProjectModel::ProjectModelColumns::Comment:
         return collator.compare(projectModel->data(left).toString(), projectModel->data(right).toString()) < 0;
-    case ProjectModel::TotalCount:
-    case ProjectModel::TranslatedCount:
-    case ProjectModel::UntranslatedCount:
-    case ProjectModel::IncompleteCount:
-    case ProjectModel::FuzzyCount:
+    case ProjectModel::ProjectModelColumns::TotalCount:
+    case ProjectModel::ProjectModelColumns::TranslatedCount:
+    case ProjectModel::ProjectModelColumns::UntranslatedCount:
+    case ProjectModel::ProjectModelColumns::IncompleteCount:
+    case ProjectModel::ProjectModelColumns::FuzzyCount:
         return projectModel->data(left).toInt() < projectModel->data(right).toInt();
     default:
         return false;
@@ -293,8 +302,8 @@ ProjectWidget::ProjectWidget(/*Catalog* catalog, */QWidget* parent)
 
     setUniformRowHeights(true);
     setAllColumnsShowFocus(true);
-    int widthDefaults[] = {6, 1, 1, 1, 1, 1, 1, 4, 4, 4};
-    //FileName, Graph, TotalCount, TranslatedCount, FuzzyCount, UntranslatedCount, IncompleteCount, SourceDate, TranslationDate, LastTranslator
+    int widthDefaults[] = {6, 1, 1, 1, 1, 1, 1, 4, 4, 4, 4};
+    //FileName, Graph, TotalCount, TranslatedCount, FuzzyCount, UntranslatedCount, IncompleteCount, Comment, SourceDate, TranslationDate, LastTranslator
     int i = sizeof(widthDefaults) / sizeof(int);
     int baseWidth = columnWidth(0);
     while (--i >= 0)
@@ -394,10 +403,10 @@ void ProjectWidget::recursiveAdd(QStringList& list, const QModelIndex& idx) cons
     if (item.isDir()) {
         int j = model.rowCount(idx);
         while (--j >= 0) {
-            const KFileItem& childItem(model.itemForIndex(idx.child(j, 0)));
+            const KFileItem& childItem(model.itemForIndex(model.index(j, 0, idx)));
 
             if (childItem.isDir())
-                recursiveAdd(list, idx.child(j, 0));
+                recursiveAdd(list, model.index(j, 0, idx));
             else if (m_proxyModel->filterAcceptsRow(j, idx))
                 list.prepend(childItem.localPath());
         }
@@ -470,7 +479,7 @@ ProjectWidget::gotoIndexResult ProjectWidget::gotoIndexFind(
         }
 
         // Handle child recursively if index is not a leaf
-        QModelIndex child = index.child((direction == 1) ? 0 : (m_proxyModel->rowCount(index) - 1), index.column());
+        QModelIndex child = index.model()->index((direction == 1) ? 0 : (m_proxyModel->rowCount(index) - 1), index.column(), index);
         if (child.isValid()) {
             ProjectWidget::gotoIndexResult result = gotoIndexFind(child, role, direction);
             if (result != gotoIndex_notfound)

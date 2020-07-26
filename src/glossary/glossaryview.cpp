@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2011 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -47,6 +48,7 @@
 #include <QTime>
 #include <QSet>
 #include <QScrollArea>
+#include <QElapsedTimer>
 #include <QPushButton>
 
 #include <klocalizedstring.h>
@@ -60,7 +62,7 @@ GlossaryView::GlossaryView(QWidget* parent, Catalog* catalog, const QVector<QAct
     , m_catalog(catalog)
     , m_flowLayout(new FlowLayout(FlowLayout::glossary,/*who gets signals*/this, actions, 0, 10))
     , m_glossary(Project::instance()->glossary())
-    , m_rxClean(Project::instance()->markup() % '|' % Project::instance()->accel()) //cleaning regexp; NOTE isEmpty()?
+    , m_rxClean(Project::instance()->markup() + '|' + Project::instance()->accel()) //cleaning regexp; NOTE isEmpty()?
     , m_rxSplit(QStringLiteral("\\W|\\d"))//splitting regexp
     , m_currentIndex(-1)
     , m_normTitle(i18nc("@title:window", "Glossary"))
@@ -82,7 +84,7 @@ GlossaryView::GlossaryView(QWidget* parent, Catalog* catalog, const QVector<QAct
     setWidget(m_browser);
     m_browser->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
     m_browser->setAutoFillBackground(true);
-    m_browser->setBackgroundRole(QPalette::Background);
+    m_browser->setBackgroundRole(QPalette::Window);
 
     m_rxClean.setMinimal(true);
     connect(m_glossary, &Glossary::changed, this, QOverload<>::of(&GlossaryView::slotNewEntryDisplayed), Qt::QueuedConnection);
@@ -115,7 +117,6 @@ void GlossaryView::slotNewEntryDisplayed()
 void GlossaryView::slotNewEntryDisplayed(DocPosition pos)
 {
     //qCWarning(LOKALIZE_LOG)<<"\n\n\n\nstart"<<pos.entry<<m_currentIndex;
-    QTime time; time.start();
     if (pos.entry == -1)
         pos.entry = m_currentIndex;
     else
@@ -165,7 +166,7 @@ void GlossaryView::slotNewEntryDisplayed(DocPosition pos)
 
     bool found = false;
     //m_flowLayout->setEnabled(false);
-    foreach (const QByteArray& termId, termIds.toSet()) {
+    foreach (const QByteArray& termId, QSet<QByteArray>(termIds.begin(), termIds.end())) {
         // now check which of them are really hits...
         foreach (const QString& enTerm, glossary.terms(termId, sourceLangCode)) {
             // ...and if so, which part of termEn list we must thank for match ...

@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -184,7 +185,6 @@ bool SubjectFieldModel::insertRows(int row, int count, const QModelIndex& parent
 
 bool SubjectFieldModel::setData(const QModelIndex& index, const QVariant& value, int role)
 {
-    qCDebug(LOKALIZE_LOG) << role;
     QStringList& subjectFields = Project::instance()->glossary()->subjectFields;
     subjectFields[index.row()] = value.toString();
     return true;
@@ -307,7 +307,7 @@ GlossaryWindow::GlossaryWindow(QWidget *parent)
     //m_subjectField->addItems(Project::instance()->glossary()->subjectFields());
     //m_subjectField->setModel(new SubjectFieldModel(this));
     QStringList subjectFields = Project::instance()->glossary()->subjectFields();
-    qSort(subjectFields);
+    std::sort(subjectFields.begin(), subjectFields.end());
     QStringListModel* subjectFieldsModel = new QStringListModel(this);
     subjectFieldsModel->setStringList(subjectFields);
     m_subjectField->setModel(subjectFieldsModel);
@@ -326,10 +326,6 @@ GlossaryWindow::GlossaryWindow(QWidget *parent)
     /*setCaption(i18nc("@title:window","Glossary"),
               !glossary->changedIds.isEmpty()||!glossary->addedIds.isEmpty()||!glossary->removedIds.isEmpty());
               */
-}
-
-GlossaryWindow::~GlossaryWindow()
-{
 }
 
 void GlossaryWindow::setFocus()
@@ -430,16 +426,14 @@ void GlossaryWindow::selectEntry(const QByteArray& id)
     //let it fetch the rows
     QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents | QEventLoop::ExcludeSocketNotifiers | QEventLoop::WaitForMoreEvents, 100);
 
-    QModelIndexList items = m_proxyModel->match(m_proxyModel->index(0, 0), Qt::DisplayRole, QVariant(id), 1, 0);
+    QModelIndexList items = m_proxyModel->match(m_proxyModel->index(0, 0), Qt::DisplayRole, QVariant(id), 1, Qt::MatchExactly);
     if (items.count()) {
         m_browser->setCurrentIndex(items.first());
         m_browser->scrollTo(items.first(), QAbstractItemView::PositionAtCenter);
-        //qCDebug(LOKALIZE_LOG)<<id<<items<<items.first().row();
     } else {
         //the row is probably not fetched yet
         m_browser->setCurrentIndex(QModelIndex());
         showEntryInEditor(id);
-        //qCDebug(LOKALIZE_LOG)<<id<<0;
     }
 }
 

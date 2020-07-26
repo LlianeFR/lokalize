@@ -4,6 +4,7 @@
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
   Copyright (C) 1999-2000 by Matthias Kiefer <matthias.kiefer@gmx.de>
                 2001-2004 by Stanislav Visnovsky <visnovsky@kde.org>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -105,7 +106,7 @@ EditorView::EditorView(QWidget *parent, Catalog* catalog/*,keyEventHandler* kh*/
     m_sourceTextEdit->setWhatsThis(i18n("<qt><p><b>Original String</b></p>\n"
                                         "<p>This part of the window shows the original message\n"
                                         "of the currently displayed entry.</p></qt>"));
-    m_sourceTextEdit->viewport()->setBackgroundRole(QPalette::Background);
+    m_sourceTextEdit->viewport()->setBackgroundRole(QPalette::Window);
 
     m_sourceTextEdit->setVisualizeSeparators(Settings::self()->visualizeSeparators());
     m_targetTextEdit->setVisualizeSeparators(Settings::self()->visualizeSeparators());
@@ -130,6 +131,8 @@ EditorView::EditorView(QWidget *parent, Catalog* catalog/*,keyEventHandler* kh*/
     connect(m_targetTextEdit, &TranslationUnitTextEdit::findNextRequested, this, &EditorView::findNextRequested);
     connect(m_sourceTextEdit, &TranslationUnitTextEdit::replaceRequested, this, &EditorView::replaceRequested);
     connect(m_targetTextEdit, &TranslationUnitTextEdit::replaceRequested, this, &EditorView::replaceRequested);
+    connect(m_sourceTextEdit, &TranslationUnitTextEdit::zoomRequested, m_targetTextEdit, &TranslationUnitTextEdit::zoomRequestedSlot);
+    connect(m_targetTextEdit, &TranslationUnitTextEdit::zoomRequested, m_sourceTextEdit, &TranslationUnitTextEdit::zoomRequestedSlot);
 
     connect(this, &EditorView::doExplicitCompletion, m_targetTextEdit, &TranslationUnitTextEdit::doExplicitCompletion);
 
@@ -239,7 +242,7 @@ void EditorView::gotoEntry(DocPosition pos, int selection)
             if (offset != -1)
                 t.movePosition(QTextCursor::NextCharacter, QTextCursor::MoveAnchor, offset + 1);
         } else if (Q_UNLIKELY(targetString.startsWith(TAGRANGE_IMAGE_SYMBOL))) {
-            int offset = targetString.indexOf(QRegExp(QStringLiteral("[^") % QChar(TAGRANGE_IMAGE_SYMBOL) % ']'));
+            int offset = targetString.indexOf(QRegExp(QStringLiteral("[^") + QChar(TAGRANGE_IMAGE_SYMBOL) + ']'));
             if (offset != -1)
                 t.movePosition(QTextCursor::NextCharacter, QTextCursor::MoveAnchor, offset + 1);
         }
@@ -285,7 +288,7 @@ void EditorView::unwrap(TranslationUnitTextEdit* editor)
 
 void EditorView::insertTerm(const QString& term)
 {
-    m_targetTextEdit->insertPlainText(term);
+    m_targetTextEdit->insertPlainTextWithCursorCheck(term);
     m_targetTextEdit->setFocus();
 }
 

@@ -3,6 +3,7 @@
 
   Copyright (C) 2007 by Nick Shaforostoff <shafff@ukr.net>
   Copyright (C) 2004-2007 Trolltech ASA. All rights reserved.
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -58,7 +59,7 @@ public:
      * c'tor for glossary view
      */
     explicit FlowLayout(User user = standard, QWidget *signalingWidget = nullptr,
-               const QVector<QAction*>& actions = QVector<QAction*>(), int margin = 0, int spacing = -1);
+                        const QVector<QAction*>& actions = QVector<QAction*>(), int margin = 0, int spacing = -1);
 
     ~FlowLayout() override;
 

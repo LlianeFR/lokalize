@@ -2,6 +2,7 @@
   This file is part of KAider
 
   Copyright (C) 2007 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -52,7 +53,6 @@
 #include <QTime>
 #include <QSplitter>
 #include <QTextBrowser>
-#include <QSignalMapper>
 #include <QTimer>
 
 // #include <QShortcutEvent>
@@ -74,7 +74,7 @@ WebQueryView::WebQueryView(QWidget* parent, Catalog* catalog, const QVector<QAct
 
     hide();
 
-    m_browser->viewport()->setBackgroundRole(QPalette::Background);
+    m_browser->viewport()->setBackgroundRole(QPalette::Window);
 
     m_browser->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     QWidget* w = new QWidget(m_splitter);
@@ -106,13 +106,10 @@ void WebQueryView::initLater()
     m_browser->setToolTip(i18nc("@info:tooltip", "Double-click any word to insert it into translation"));
 
 
-    QSignalMapper* signalMapper = new QSignalMapper(this);
     int i = m_actions.size();
     while (--i >= 0) {
-        connect(m_actions.at(i), &QAction::triggered, signalMapper, QOverload<>::of(&QSignalMapper::map));
-        signalMapper->setMapping(m_actions.at(i), i);
+        connect(m_actions.at(i), &QAction::triggered, this, [this, i] { slotUseSuggestion(i); });
     }
-    connect(signalMapper, QOverload<int>::of(&QSignalMapper::mapped), this, &WebQueryView::slotUseSuggestion);
     connect(m_browser, &QTextBrowser::selectionChanged, this, &WebQueryView::slotSelectionChanged);
 
 }

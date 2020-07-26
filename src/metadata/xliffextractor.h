@@ -1,9 +1,9 @@
 /*
-    Gettext translation file analyzer
+    XLIFF translation file analyzer
 
-    Copyright (C) 2007 Montel Laurent <montel@kde.org>
-    Copyright (C) 2009 Jos van den Oever <jos@vandenoever.info>
-    Copyright (C) 2014 Nick Shaforostoff <shaforostoff@gmail.com>
+    Copyright (C) 2011 Albert Astals Cid <aacid@kde.org>
+    Copyright (C) 2015 Nick Shaforostoff <shaforostoff@gmail.com>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -20,34 +20,17 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+#ifndef XLIFFEXTRACTOR_H
+#define XLIFFEXTRACTOR_H
 
-#ifndef POEXTRACTOR_H
-#define POEXTRACTOR_H
+#include "filemetadata.h"
 
-#include "projectmodel.h"
-
-class POExtractor
+class XliffExtractor
 {
 
 public:
-    POExtractor();
-    void extract(const QString& filePath, FileMetaData& data);
-
-private:
-    void endMessage();
-    void handleComment(const char* data, uint32_t length);
-    void handleLine(const char* data, uint32_t length);
-
-
-    enum PoState {COMMENT, MSGCTXT, MSGID, MSGID_PLURAL, MSGSTR, MSGSTR_PLURAL,
-                  WHITESPACE, ERROR
-                 };
-    PoState state;
-    int messages;
-    int untranslated;
-    int fuzzy;
-    bool isFuzzy, isTranslated;
+    XliffExtractor() = default;
+    FileMetaData extract(const QString& filePath);
 };
-
 
 #endif // PLAINTEXTEXTRACTOR_H

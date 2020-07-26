@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2012 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -29,6 +30,7 @@
 #include "rule.h"
 
 #include <QDockWidget>
+#include <QScreen>
 #include <QAbstractListModel>
 #include <state.h>
 #include <phase.h>
@@ -174,7 +176,7 @@ public:
     };
 
     explicit FileSearchModel(QObject* parent);
-    ~FileSearchModel() override {}
+    ~FileSearchModel() override = default;
 
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
     QVariant data(const QModelIndex& item, int role = Qt::DisplayRole) const override;
@@ -287,7 +289,7 @@ public:
                        const QVector<Rule>& r,
                        int sn,
                        QObject* parent = nullptr);
-    ~SearchJob() override {}
+    ~SearchJob() override = default;
 
 signals:
     void done(SearchJob*);
@@ -315,7 +317,7 @@ public:
                             const QString& r,
                             //int sn,
                             QObject* parent = nullptr);
-    ~MassReplaceJob() override {}
+    ~MassReplaceJob() override = default;
 
 signals:
     void done(MassReplaceJob*);

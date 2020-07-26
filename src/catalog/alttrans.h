@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -28,7 +29,7 @@
 #include "tmentry.h"
 
 struct AltTrans {
-    ///@see http://docs.oasis-open.org/xliff/v1.2/os/xliff-core.html#alttranstype
+    ///@see https://docs.oasis-open.org/xliff/v1.2/os/xliff-core.html#alttranstype
     enum Type {Proposal, PreviousVersion, Rejected, Reference, Accepted, Other};
     Type type;
 

@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2011 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -32,6 +33,7 @@
 #include <QSqlQueryModel>
 #include <QSqlDatabase>
 #include <QMutex>
+#include <QScreen>
 
 class KXMLGUIClient;
 class QComboBox;
@@ -143,7 +145,7 @@ public:
     };
 
     explicit TMDBModel(QObject* parent);
-    ~TMDBModel() {}
+    ~TMDBModel() override = default;
 
     QVariant data(const QModelIndex& item, int role = Qt::DisplayRole) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const override

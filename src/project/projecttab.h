@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -48,7 +49,7 @@ class ProjectTab: public LokalizeSubwindowBase2
 
 public:
     explicit ProjectTab(QWidget *parent);
-    ~ProjectTab() override;
+    ~ProjectTab() override = default;
 
     void contextMenuEvent(QContextMenuEvent *event) override;
 
@@ -83,6 +84,7 @@ public slots:
     Q_SCRIPTABLE QStringList selectedItems() const;
     Q_SCRIPTABLE bool currentItemIsTranslationFile() const;
     void showRealProjectOverview();
+    void showWelcomeScreen();
 
     //Q_SCRIPTABLE bool isShown() const;
 
@@ -91,6 +93,7 @@ private slots:
     void setFocus();
     void scanFilesToTM();
     void pologyOnFiles();
+    void addComment();
     void searchInFiles(bool templ = false);
     void searchInFilesInclTempl();
     void openFile();

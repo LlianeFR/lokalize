@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -132,7 +133,7 @@ void DBFilesModel::openDB(const QString& name, DbType type, bool forceCurrentPro
     m_openingDbLock.unlock();
     if (type == TM::Undefined)
         type = QFileInfo(
-                   QStandardPaths::writableLocation(QStandardPaths::DataLocation) % QLatin1Char('/') % name % QStringLiteral(REMOTETM_DATABASE_EXTENSION)).exists() ? TM::Remote : TM::Local;
+                   QStandardPaths::writableLocation(QStandardPaths::DataLocation) + QLatin1Char('/') + name + QStringLiteral(REMOTETM_DATABASE_EXTENSION)).exists() ? TM::Remote : TM::Local;
     OpenDBJob* openDBJob = new OpenDBJob(name, type);
     if (forceCurrentProjectConfig) {
         openDBJob->m_setParams = true;
@@ -201,7 +202,7 @@ void DBFilesModel::removeTM(QModelIndex index)
 void DBFilesModel::closeJobDone(CloseDBJob* j)
 {
     j->deleteLater();
-    QString filename = m_fileSystemModel->rootPath() % '/' % j->dbName() % tmFileExtension;
+    QString filename = m_fileSystemModel->rootPath() + '/' + j->dbName() + tmFileExtension;
     qCWarning(LOKALIZE_LOG) << "removing file " << filename;
     QFile::remove(filename);
 }

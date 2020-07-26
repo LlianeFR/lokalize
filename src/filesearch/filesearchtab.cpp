@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -38,6 +39,7 @@
 #include "fastsizehintitemdelegate.h"
 
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QDesktopWidget>
 #include <QTreeView>
 #include <QClipboard>
@@ -197,7 +199,7 @@ SearchJob::SearchJob(const QStringList& f, const SearchParams& sp, const QVector
 
 void SearchJob::run()
 {
-    QTime a; a.start();
+    QElapsedTimer a; a.start();
     bool removeAmpFromSource = searchParams.sourcePattern.patternSyntax() == QRegExp::FixedString
                                && !searchParams.sourcePattern.pattern().contains(QLatin1Char('&'));
     bool removeAmpFromTarget = searchParams.targetPattern.patternSyntax() == QRegExp::FixedString
@@ -415,7 +417,7 @@ QVariant FileSearchModel::data(const QModelIndex& item, int role) const
 void FileSearchModel::setReplacePreview(const QRegExp& s, const QString& r)
 {
     m_replaceWhat = s;
-    m_replaceWith = QLatin1String("_ST_") % r % QLatin1String("_END_");
+    m_replaceWith = QLatin1String("_ST_") + r + QLatin1String("_END_");
 
     emit dataChanged(index(0, Target), index(rowCount() - 1, Target));
 }
@@ -502,7 +504,7 @@ FileSearchTab::FileSearchTab(QWidget *parent)
 
 
 //BEGIN resizeColumnToContents
-    static const int maxInitialWidths[] = {QApplication::desktop()->availableGeometry().width() / 3, QApplication::desktop()->availableGeometry().width() / 3};
+    static const int maxInitialWidths[] = {QGuiApplication::primaryScreen()->availableGeometry().width() / 3, QGuiApplication::primaryScreen()->availableGeometry().width() / 3};
     int column = sizeof(maxInitialWidths) / sizeof(int);
     while (--column >= 0)
         view->setColumnWidth(column, maxInitialWidths[column]);
@@ -610,7 +612,7 @@ void FileSearchTab::stopSearch()
 #if QT_VERSION >= 0x050500
     int i = m_runningJobs.size();
     while (--i >= 0)
-        QThreadPool::globalInstance()->cancel(m_runningJobs.at(i));
+        QThreadPool::globalInstance()->tryTake(m_runningJobs.at(i));
 #endif
     m_runningJobs.clear();
 }
@@ -834,7 +836,7 @@ MassReplaceView::~MassReplaceView()
 static QRegExp regExpFromUi(const QString& s, Ui_MassReplaceOptions* ui)
 {
     return QRegExp(s, ui->matchCase->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
-                   ui->useRegExps->isChecked() ? QRegExp::FixedString : QRegExp::RegExp);
+                   ui->useRegExps->isChecked() ? QRegExp::RegExp : QRegExp::FixedString);
 }
 
 void MassReplaceView::requestPreviewUpdate()

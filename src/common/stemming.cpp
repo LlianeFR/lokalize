@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009-2011 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -55,21 +56,21 @@ SpellerAndCodec::SpellerAndCodec(const QString& langCode)
     : speller(0), codec(0)
 {
 #ifdef Q_OS_MAC
-    QString dictPath = QStringLiteral("/Applications/LibreOffice.app/Contents/Resources/extensions/dict-") % langCode.leftRef(2) % '/';
+    QString dictPath = QStringLiteral("/Applications/LibreOffice.app/Contents/Resources/extensions/dict-") + langCode.leftRef(2) + '/';
     if (langCode == QLatin1String("pl_PL")) dictPath = QStringLiteral("/System/Library/Spelling/");
 #elif defined(Q_OS_WIN)
-    QString dictPath = QStringLiteral("C:/Program Files (x86)/LibreOffice 5/share/extensions/dict-") % langCode.leftRef(2) % '/';
+    QString dictPath = QStringLiteral("C:/Program Files (x86)/LibreOffice 5/share/extensions/dict-") + langCode.leftRef(2) + '/';
 #else
     QString dictPath = QStringLiteral("/usr/share/hunspell/");
     if (!QFileInfo::exists(dictPath))
         dictPath = QStringLiteral("/usr/share/myspell/");
 #endif
 
-    QString dic = dictPath % langCode % QLatin1String(".dic");
+    QString dic = dictPath + langCode + QLatin1String(".dic");
     if (!QFileInfo::exists(dic))
-        dic = dictPath % enhanceLangCode(langCode) % QLatin1String(".dic");
+        dic = dictPath + enhanceLangCode(langCode) + QLatin1String(".dic");
     if (QFileInfo::exists(dic)) {
-        speller = new Hunspell(QString(dictPath % langCode % ".aff").toLatin1().constData(), dic.toLatin1().constData());
+        speller = new Hunspell(QString(dictPath + langCode + ".aff").toLatin1().constData(), dic.toLatin1().constData());
         codec = QTextCodec::codecForName(speller->get_dic_encoding());
         if (!codec)
             codec = QTextCodec::codecForLocale();
@@ -97,16 +98,11 @@ QString stem(const QString& langCode, const QString& word)
     if (!speller)
         return word;
 
-    char** result1;
-    char** result2;
-    int n1 = speller->analyze(&result1, sc.codec->fromUnicode(word));
-    int n2 = speller->stem(&result2, result1, n1);
+    const std::vector<std::string> result1 = speller->analyze(sc.codec->fromUnicode(word).toStdString());
+    const std::vector<std::string> result2 = speller->stem(result1);
 
-    if (n2)
-        result = sc.codec->toUnicode(result2[0]);
-
-    speller->free_list(&result1, n1);
-    speller->free_list(&result2, n2);
+    if (!result2.empty())
+        result = sc.codec->toUnicode(QByteArray::fromStdString(result2[0]));
 #endif
 
     return result;

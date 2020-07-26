@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2011 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -27,7 +28,7 @@
 #include "jobs.h"
 
 #include <QSortFilterProxyModel>
-#include <QTime>
+#include <QElapsedTimer>
 #include <QMutex>
 class QFileSystemModel;
 class QPersistentModelIndex;
@@ -99,7 +100,7 @@ private:
     mutable QPersistentModelIndex* projectDB;
     QFileSystemModel* m_fileSystemModel;
     QString m_tmRootPath;
-    QTime m_timeSinceLastUpdate;
+    QElapsedTimer m_timeSinceLastUpdate;
 
     QMap<QString, OpenDBJob::DBStat> m_stats;
 public:

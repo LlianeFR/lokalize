@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -252,7 +253,7 @@ PhasesWindow::PhasesWindow(Catalog* catalog, QWidget *parent)
     m_stackedLayout = new QStackedLayout(m_noteView);
     m_stackedLayout->addWidget(m_browser);
 
-    m_browser->viewport()->setBackgroundRole(QPalette::Background);
+    m_browser->viewport()->setBackgroundRole(QPalette::Window);
     m_browser->setOpenLinks(false);
     connect(m_browser, &QTextBrowser::anchorClicked, this, &PhasesWindow::anchorClicked);
 

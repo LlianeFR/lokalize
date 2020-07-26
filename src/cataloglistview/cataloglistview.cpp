@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -117,11 +118,11 @@ CatalogView::CatalogView(QWidget* parent, Catalog* catalog)
     m_browser->setRootIsDecorated(false);
     m_browser->setAllColumnsShowFocus(true);
     m_browser->setAlternatingRowColors(true);
-    m_browser->viewport()->setBackgroundRole(QPalette::Background);
+    m_browser->viewport()->setBackgroundRole(QPalette::Window);
 #ifdef Q_OS_DARWIN
     QPalette p;
-    p.setColor(QPalette::AlternateBase, p.color(QPalette::Background).darker(110));
-    p.setColor(QPalette::Highlight, p.color(QPalette::Background).darker(150));
+    p.setColor(QPalette::AlternateBase, p.color(QPalette::Window).darker(110));
+    p.setColor(QPalette::Highlight, p.color(QPalette::Window).darker(150));
     m_browser->setPalette(p);
 #endif
 
@@ -154,13 +155,22 @@ void CatalogView::slotNewEntryDisplayed(const DocPosition& pos)
     QModelIndex item = m_proxyModel->mapFromSource(m_model->index(pos.entry, 0));
     m_browser->setCurrentIndex(item);
     m_browser->scrollTo(item/*,QAbstractItemView::PositionAtCenter*/);
+    m_lastKnownDocPosition = pos.entry;
 }
 
 void CatalogView::setFilterRegExp()
 {
     QString expr = m_lineEdit->text();
     if (m_proxyModel->filterRegExp().pattern() != expr)
-        m_proxyModel->setFilterRegExp(m_proxyModel->filerOptions()&CatalogTreeFilterModel::IgnoreAccel ? expr.remove(Project::instance()->accel()) : expr);
+        m_proxyModel->setFilterRegExp(m_proxyModel->filterOptions()&CatalogTreeFilterModel::IgnoreAccel ? expr.remove(Project::instance()->accel()) : expr);
+    refreshCurrentIndex();
+}
+
+void CatalogView::refreshCurrentIndex()
+{
+    QModelIndex newPositionOfSelectedItem = m_proxyModel->mapFromSource(m_model->index(m_lastKnownDocPosition, 0));
+    m_browser->setCurrentIndex(newPositionOfSelectedItem);
+    m_browser->scrollTo(newPositionOfSelectedItem);
 }
 
 void CatalogView::slotItemActivated(const QModelIndex& idx)
@@ -175,12 +185,13 @@ void CatalogView::filterOptionToggled(QAction* action)
 
     int opt = action->data().toInt();
     if (opt > 0)
-        m_proxyModel->setFilerOptions(m_proxyModel->filerOptions()^opt);
+        m_proxyModel->setFilterOptions(m_proxyModel->filterOptions()^opt);
     else {
         if (opt != -1) opt = -opt - 2;
         m_proxyModel->setFilterKeyColumn(opt);
     }
     m_filterOptionsMenu->clear();
+    refreshCurrentIndex();
 }
 void CatalogView::fillFilterOptionsMenu()
 {
@@ -215,6 +226,7 @@ void CatalogView::fillFilterOptionsMenu()
     QMenu* allmenus[2] = {basicMenu, extMenu};
     QMenu* columnsMenu = m_filterOptionsMenu->addMenu(i18nc("@title:inmenu", "Searchable column"));
 
+    QActionGroup* columnsMenuGroup = new QActionGroup(columnsMenu);
     QAction* txt;
     txt = m_filterOptionsMenu->addAction(i18nc("@title:inmenu", "Resort and refilter on content change"), m_proxyModel, &CatalogTreeFilterModel::setDynamicSortFilter);
     txt->setCheckable(true);
@@ -226,27 +238,29 @@ void CatalogView::fillFilterOptionsMenu()
         txt = allmenus[ext]->addAction(i18n(alltitles[ext][i - ext * FIRSTSTATEPOSITION]));
         txt->setData(1 << i);
         txt->setCheckable(true);
-        txt->setChecked(m_proxyModel->filerOptions() & (1 << i));
+        txt->setChecked(m_proxyModel->filterOptions() & (1 << i));
         if ((1 << i) == CatalogTreeFilterModel::IgnoreAccel)
             basicMenu->addSeparator();
     }
     if (!extStates)
         m_filterOptionsMenu->addSeparator();
-    for (int i = -1; i < CatalogTreeModel::DisplayedColumnCount; ++i) {
-        qCWarning(LOKALIZE_LOG) << i;
+    for (int i = -1; i < CatalogTreeModel::DisplayedColumnCount - 1; ++i) {
         txt = columnsMenu->addAction((i == -1) ? i18nc("@item:inmenu all columns", "All") :
                                      m_model->headerData(i, Qt::Horizontal, Qt::DisplayRole).toString());
         txt->setData(-i - 2);
         txt->setCheckable(true);
         txt->setChecked(m_proxyModel->filterKeyColumn() == i);
+        txt->setActionGroup(columnsMenuGroup);
     }
+    refreshCurrentIndex();
 }
 
 void CatalogView::reset()
 {
     m_proxyModel->setFilterKeyColumn(-1);
-    m_proxyModel->setFilerOptions(CatalogTreeFilterModel::AllStates);
+    m_proxyModel->setFilterOptions(CatalogTreeFilterModel::AllStates);
     m_lineEdit->clear();
+    refreshCurrentIndex();
     //emit gotoEntry(DocPosition(m_proxyModel->mapToSource(m_browser->currentIndex()).row()),0);
     slotItemActivated(m_browser->currentIndex());
 }
@@ -305,11 +319,13 @@ int CatalogView::lastEntryNumber()
 void CatalogView::setEntryFilteredOut(int entry, bool filteredOut)
 {
     m_proxyModel->setEntryFilteredOut(entry, filteredOut);
+    refreshCurrentIndex();
 }
 
 void CatalogView::setEntriesFilteredOut(bool filteredOut)
 {
     show();
     m_proxyModel->setEntriesFilteredOut(filteredOut);
+    refreshCurrentIndex();
 }
 

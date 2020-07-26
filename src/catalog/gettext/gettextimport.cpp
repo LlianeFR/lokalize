@@ -6,6 +6,7 @@
                 2001-2003 by Stanislav Visnovsky <visnovsky@kde.org>
                 2006 by Nicolas GOUTTE <nicolasg@snafu.de>
                 2007 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -107,8 +108,8 @@ ConversionStatus GettextImportPlugin::load(QIODevice* device)
     CatalogItem tempHeader;
 
     //qCDebug(LOKALIZE_LOG) << "start parsing...";
-    QTime aaa;
-    aaa.start();
+//     QTime aaa;
+//     aaa.start();
     // first read header
     const ConversionStatus status = readEntry(stream);
 

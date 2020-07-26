@@ -4,10 +4,11 @@
       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
                           http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
   <include>kde-i18n-lists.h</include>
+  <include>klocalizedstring.h</include>
   <kcfgfile arg="true"/>
   <group name="General">
     <entry name="ProjectID"  type="String">
-        <default>default</default>
+        <default code="true">i18n("default")</default>
     </entry>
     <entry name="Kind"  type="String">
         <default>kde</default>
@@ -25,6 +26,33 @@
     </entry>
     <entry name="MailingList"  type="String">
         <default code="true">getMailingList()</default>
+    </entry>
+    <entry name="UserLangTeam" type="String">
+<!--
+        <label>User Language Team in Lokalize settings</label>
+-->
+        <default></default>
+    </entry>
+    <entry name="OverrideLangTeam" type="Bool">
+<!--
+        <label>Override Lokalize Language Team</label>
+-->
+        <default>false</default>
+    </entry>
+    <entry name="ProjLangTeam" type="String">
+<!--
+        <label>Project Language Team</label>
+-->
+        <default></default>
+    </entry>
+    <entry name="LanguageSource" type="Enum">
+            <choices name="LangSource">
+            <choice name="Automatic" />
+            <choice name="Application" />
+            <choice name="Project" />
+            <choice name="Undefined" />
+        </choices>
+        <default>Application</default>
     </entry>
     <entry name="PoBaseDir"  type="String">
 <!--
@@ -62,6 +90,14 @@
     </entry>
     <entry name="WordWrap"  type="Int">
         <default>80</default>
+    </entry>
+  </group>
+  <group name="Comments">
+    <entry name="CommentsFiles" type="StringList">
+    <default></default>
+    </entry>
+    <entry name="CommentsTexts" type="StringList">
+    <default></default>
     </entry>
   </group>
 </kcfg>

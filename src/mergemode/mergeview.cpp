@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -61,7 +62,7 @@ MergeView::MergeView(QWidget* parent, Catalog* catalog, bool primary)
     setAcceptDrops(true);
     m_browser->setReadOnly(true);
     m_browser->setContextMenuPolicy(Qt::NoContextMenu);
-    m_browser->viewport()->setBackgroundRole(QPalette::Background);
+    m_browser->viewport()->setBackgroundRole(QPalette::Window);
     setContextMenuPolicy(Qt::ActionsContextMenu);
 }
 
@@ -360,7 +361,7 @@ bool MergeView::event(QEvent *event)
 {
     if (event->type() == QEvent::ToolTip && m_mergeCatalog) {
         QHelpEvent *helpEvent = static_cast<QHelpEvent *>(event);
-        QString text = QStringLiteral("<b>") % QDir::toNativeSeparators(filePath()) % QStringLiteral("</b>\n") % i18nc("@info:tooltip", "Different entries: %1\nUnmatched entries: %2",
+        QString text = QStringLiteral("<b>") + QDir::toNativeSeparators(filePath()) + QStringLiteral("</b>\n") + i18nc("@info:tooltip", "Different entries: %1\nUnmatched entries: %2",
                        m_mergeCatalog->differentEntries().count(), m_mergeCatalog->unmatchedCount());
         text.replace('\n', QStringLiteral("<br />"));
         QToolTip::showText(helpEvent->globalPos(), text);

@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -157,7 +158,7 @@ BinUnitsView::BinUnitsView(Catalog* catalog, QWidget* parent)
     m_view->setModel(m_model);
     m_view->setRootIsDecorated(false);
     m_view->setAlternatingRowColors(true);
-    m_view->viewport()->setBackgroundRole(QPalette::Background);
+    m_view->viewport()->setBackgroundRole(QPalette::Window);
     connect(m_view, &MyTreeView::doubleClicked, this, &BinUnitsView::mouseDoubleClicked);
 
     connect(catalog, QOverload<>::of(&Catalog::signalFileLoaded), this, &BinUnitsView::fileLoaded);

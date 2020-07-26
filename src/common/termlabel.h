@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -38,7 +39,7 @@ class TermLabel: public QLabel//QPushButton
     Q_OBJECT
 public:
     explicit TermLabel(QAction* a = nullptr): m_capFirst(false), m_action(a) {}
-    ~TermLabel() override {}
+    ~TermLabel() override = default;
 
     /**
      * @param term is the term matched

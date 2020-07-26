@@ -3,7 +3,8 @@
 
   wordDiff algorithm adoption and further refinement:
         Copyright (C) 2007 by Nick Shaforostoff <shafff@ukr.net>
-  (based on Markus Stengel's GPL implementation of LCS-Delta algorithm as it is described in "Introduction to Algorithms", MIT Press, 2001, Second Edition, written by Thomas H. Cormen et. al. It uses dynamic programming to solve the Longest Common Subsequence (LCS) problem. - http://www.markusstengel.de/text/en/i_4_1_5_3.html)
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
+  (based on Markus Stengel's GPL implementation of LCS-Delta algorithm as it is described in "Introduction to Algorithms", MIT Press, 2001, Second Edition, written by Thomas H. Cormen et. al. It uses dynamic programming to solve the Longest Common Subsequence (LCS) problem.)
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -360,7 +361,7 @@ static void prepareLists(QString str, QStringList& main, QStringList& space, con
     //i tried that but it failed:
     if (!markup.isEmpty())
         markup += '|';
-    QRegExp rxSplit('(' % markup % QLatin1String("\\W+|\\d+)+"));
+    QRegExp rxSplit('(' + markup + QLatin1String("\\W+|\\d+)+"));
 
     main = str.split(rxSplit, QString::SkipEmptyParts);
     main.prepend("\t");//little hack
@@ -423,9 +424,9 @@ QString userVisibleWordDiff(const QString& str1ForMatching,
     res.remove(QStringLiteral("{/KBABELDEL}{KBABELDEL}"));
 
     if (options & Html) {
-        res.replace(QLatin1String("{KBABELADD}"), QLatin1String("<font style=\"background-color:") % Settings::addColor().name() % QLatin1String(";color:black\">"));
+        res.replace(QLatin1String("{KBABELADD}"), QLatin1String("<font style=\"background-color:") + Settings::addColor().name() + QLatin1String(";color:black\">"));
         res.replace(QLatin1String("{/KBABELADD}"), QLatin1String("</font>"));
-        res.replace(QLatin1String("{KBABELDEL}"), QLatin1String("<font style=\"background-color:") % Settings::delColor().name() % QLatin1String(";color:black\">"));
+        res.replace(QLatin1String("{KBABELDEL}"), QLatin1String("<font style=\"background-color:") + Settings::delColor().name() + QLatin1String(";color:black\">"));
         res.replace(QLatin1String("{/KBABELDEL}"), QLatin1String("</font>"));
         res.replace(QLatin1String("\\n"), QLatin1String("\\n<br>"));
     }

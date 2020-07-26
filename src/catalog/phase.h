@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -43,20 +44,16 @@ struct Phase {
 
     Phase();
 
-    Phase(const Phase& rhs)
-        : name(rhs.name)
-        , process(rhs.process)
-        , company(rhs.company)
-        , date(rhs.date)
-        , contact(rhs.contact)
-        , email(rhs.email)
-        , phone(rhs.phone)
-        , tool(rhs.tool)
-    {}
+    Phase(const Phase& rhs) = default;
+    Phase &operator=(const Phase& rhs) = default;
 
     bool operator<(const Phase& other) const
     {
         return date < other.date;
+    }
+    bool operator>(const Phase& other) const
+    {
+        return date > other.date;
     }
 };
 

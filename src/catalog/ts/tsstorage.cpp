@@ -1,5 +1,6 @@
 /*
 Copyright 2008-2014 Nick Shaforostoff <shaforostoff@kde.ru>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License as
@@ -31,7 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <QString>
 #include <QMap>
 #include <QDomDocument>
-#include <QTime>
+#include <QElapsedTimer>
 #include <QPair>
 #include <QList>
 #include <QXmlSimpleReader>
@@ -55,12 +56,30 @@ enum AttrNames                   {LocationAttr, TypeAttr, ObsoleteAttr};
 static const QString attrvalues[] = {U("obsolete"), U("vanished")};
 enum AttValues                    {ObsoleteVal, VanishedVal};
 
-TsStorage::TsStorage()
-    : CatalogStorage()
+static QString protect(const QString & str)
 {
+    QString p = str;
+    p.replace(QLatin1Char('&'), QLatin1String("&amp;"));
+    p.replace(QLatin1Char('\"'), QLatin1String("&quot;"));
+    p.replace(QLatin1Char('>'),  QLatin1String("&gt;"));
+    p.replace(QLatin1Char('<'),  QLatin1String("&lt;"));
+    p.replace(QLatin1Char('\''), QLatin1String("&apos;"));
+    return p;
 }
 
-TsStorage::~TsStorage()
+static QString unprotect(const QString & str)
+{
+    QString p = str;
+    p.replace(QLatin1String("&amp;"), QLatin1String("&"));
+    p.replace(QLatin1String("&quot;"), QLatin1String("\""));
+    p.replace(QLatin1String("&gt;"), QLatin1String(">"));
+    p.replace(QLatin1String("&lt;"), QLatin1String("<"));
+    p.replace(QLatin1String("&apos;"), QLatin1String("\'"));
+    return p;
+}
+
+TsStorage::TsStorage()
+    : CatalogStorage()
 {
 }
 
@@ -73,8 +92,7 @@ int TsStorage::capabilities() const
 
 int TsStorage::load(QIODevice* device)
 {
-    QTime chrono; chrono.start();
-
+    QElapsedTimer chrono; chrono.start();
 
     QXmlSimpleReader reader;
     reader.setFeature(QStringLiteral("http://qt-project.org/xml/features/report-whitespace-only-CharData"), true);
@@ -101,6 +119,36 @@ int TsStorage::load(QIODevice* device)
     //we create any form-entries additionally needed
 
     entries = m_doc.elementsByTagName(QStringLiteral("message"));
+    if (!Settings::self()->convertXMLChars()) {
+        for (int pos = 0; pos < entries.size(); pos++) {
+            QDomElement refNode = entries.at(pos).firstChildElement(names[SourceTag]).toElement();
+            QDomNode firstRef = refNode.firstChild();
+            refNode.appendChild(m_doc.createCDATASection(refNode.text()));
+            refNode.removeChild(firstRef);
+            QDomElement targetEl = unitForPos(pos).firstChildElement(names[TargetTag]).toElement();
+            if (!targetEl.isNull()) {
+                if (unitForPos(pos).hasAttribute(names[PluralTag])) {
+                    QDomNodeList forms = targetEl.elementsByTagName(QStringLiteral("numerusform"));
+                    for (int f = 0; f < forms.size(); f++) {
+                        QDomNode firstTarget = forms.at(f).firstChild();
+                        forms.at(f).appendChild(m_doc.createCDATASection(forms.at(f).toElement().text()));
+                        forms.at(f).removeChild(firstTarget);
+                    }
+                } else {
+                    QDomNode firstTarget = targetEl.firstChild();
+                    targetEl.appendChild(m_doc.createCDATASection(targetEl.text()));
+                    targetEl.removeChild(firstTarget);
+                }
+            }
+
+            QDomElement noteEl = unitForPos(pos).firstChildElement(names[NoteTag]).toElement();
+            if (!noteEl.isNull()) {
+                QDomNode firstNote = noteEl.firstChild();
+                noteEl.appendChild(m_doc.createCDATASection(noteEl.text()));
+                noteEl.removeChild(firstNote);
+            }
+        }
+    }
 
     qCWarning(LOKALIZE_LOG) << chrono.elapsed() << "secs, " << entries.size() << "entries";
     return 0;
@@ -110,7 +158,76 @@ bool TsStorage::save(QIODevice* device, bool belongsToProject)
 {
     Q_UNUSED(belongsToProject)
     QTextStream stream(device);
-    m_doc.save(stream, 4);
+    if (Settings::self()->convertXMLChars()) {
+        m_doc.save(stream, 4);
+    } else {
+        QString tempString;
+        QTextStream tempStream(&tempString);
+        entries = m_doc.elementsByTagName(QStringLiteral("message"));
+        if (!Settings::self()->convertXMLChars()) {
+            for (int pos = 0; pos < entries.size(); pos++) {
+                QDomElement refNode = entries.at(pos).firstChildElement(names[SourceTag]).toElement();
+                QDomCDATASection firstRef = refNode.firstChild().toCDATASection();
+                firstRef.setData(protect(firstRef.data()));
+                QDomElement targetEl = unitForPos(pos).firstChildElement(names[TargetTag]).toElement();
+                if (!targetEl.isNull()) {
+                    if (unitForPos(pos).hasAttribute(names[PluralTag])) {
+                        QDomNodeList forms = targetEl.elementsByTagName(QStringLiteral("numerusform"));
+                        for (int f = 0; f < forms.size(); f++) {
+                            QDomCDATASection firstTarget = forms.at(f).firstChild().toCDATASection();
+                            firstTarget.setData(protect(firstTarget.data()));
+                        }
+                    } else {
+                        QDomCDATASection firstTarget = targetEl.firstChild().toCDATASection();
+                        firstTarget.setData(protect(firstTarget.data()));
+                    }
+                }
+
+                QDomElement noteEl = unitForPos(pos).firstChildElement(names[NoteTag]).toElement();
+                if (!noteEl.isNull()) {
+                    QDomCDATASection firstNote = noteEl.firstChild().toCDATASection();
+                    firstNote.setData(protect(firstNote.data()));
+                }
+            }
+        }
+        m_doc.save(tempStream, 4);
+        if (!Settings::self()->convertXMLChars()) {
+            for (int pos = 0; pos < entries.size(); pos++) {
+                QDomElement refNode = entries.at(pos).firstChildElement(names[SourceTag]).toElement();
+                QDomCDATASection firstRef = refNode.firstChild().toCDATASection();
+                firstRef.setData(unprotect(firstRef.data()));
+                QDomElement targetEl = unitForPos(pos).firstChildElement(names[TargetTag]).toElement();
+                if (!targetEl.isNull()) {
+                    if (unitForPos(pos).hasAttribute(names[PluralTag])) {
+                        QDomNodeList forms = targetEl.elementsByTagName(QStringLiteral("numerusform"));
+                        for (int f = 0; f < forms.size(); f++) {
+                            QDomCDATASection firstTarget = forms.at(f).firstChild().toCDATASection();
+                            firstTarget.setData(unprotect(firstTarget.data()));
+                        }
+                    } else {
+                        QDomCDATASection firstTarget = targetEl.firstChild().toCDATASection();
+                        firstTarget.setData(unprotect(firstTarget.data()));
+                    }
+                }
+
+                QDomElement noteEl = unitForPos(pos).firstChildElement(names[NoteTag]).toElement();
+                if (!noteEl.isNull()) {
+                    QDomCDATASection firstNote = noteEl.firstChild().toCDATASection();
+                    firstNote.setData(unprotect(firstNote.data()));
+                }
+            }
+        }
+        stream << tempString.replace(QStringLiteral("<source><![CDATA["), QStringLiteral("<source>"))
+               .replace(QStringLiteral("<translation><![CDATA["), QStringLiteral("<translation>"))
+               .replace(QStringLiteral("<numerusform><![CDATA["), QStringLiteral("<numerusform>"))
+               .replace(QStringLiteral("<translation type=\"vanished\"><![CDATA["), QStringLiteral("<translation type=\"vanished\">"))
+               .replace(QStringLiteral("<translation type=\"unfinished\"><![CDATA["), QStringLiteral("<translation type=\"unfinished\">"))
+               .replace(QStringLiteral("<translatorcomment><![CDATA["), QStringLiteral("<translatorcomment>"))
+               .replace(QStringLiteral("]]></source>"), QStringLiteral("</source>"))
+               .replace(QStringLiteral("]]></translation>"), QStringLiteral("</translation>"))
+               .replace(QStringLiteral("]]></numerusform>"), QStringLiteral("</numerusform>"))
+               .replace(QStringLiteral("]]></translatorcomment>"), QStringLiteral("</translatorcomment>"));
+    }
     return true;
 }
 //END OPEN/SAVE
@@ -119,13 +236,8 @@ bool TsStorage::save(QIODevice* device, bool belongsToProject)
 
 int TsStorage::size() const
 {
-    //return m_map.size();
-
     return entries.size();
 }
-
-
-
 
 /**
  * helper structure used during XLIFF XML walk-through
@@ -184,16 +296,15 @@ static QString doContent(QDomElement elem, int startingPos, TsContentEditingData
         || (!result.isEmpty() && data && data->actionType == TsContentEditingData::CheckLength))
         return QString();
 
-    bool seenCharacterDataAfterElement = false;
+    bool seenCDataAfterElement = false;
 
     QDomNode n = elem.firstChild();
     while (!n.isNull()) {
-        if (n.isCharacterData()) {
-            seenCharacterDataAfterElement = true;
+        if (Settings::self()->convertXMLChars() ? n.isCharacterData() : n.isCDATASection()) {
+            seenCDataAfterElement = true;
 
-            QDomCharacterData c = n.toCharacterData();
+            QDomCharacterData c = Settings::self()->convertXMLChars() ? n.toCharacterData() : n.toCDATASection();
             QString cData = c.data();
-
             if (data && data->pos != -1 &&
                 data->pos >= startingPos && data->pos <= startingPos + cData.size()) {
                 // time to do some action! ;)
@@ -202,9 +313,8 @@ static QString doContent(QDomElement elem, int startingPos, TsContentEditingData
                 //BEGIN DELETE TEXT
                 if (data->actionType == TsContentEditingData::DeleteText) { //(data->lengthOfStringToRemove!=-1)
                     if (localStartPos + data->lengthOfStringToRemove > cData.size()) {
-                        //text is fragmented into several QDomCharacterData
+                        //text is fragmented into several QDomCData
                         int localDelLen = cData.size() - localStartPos;
-                        //qCWarning(LOKALIZE_LOG)<<"text is fragmented into several QDomCharacterData. localDelLen:"<<localDelLen<<"cData:"<<cData;
                         c.deleteData(localStartPos, localDelLen);
                         //setup data for future iterations
                         data->lengthOfStringToRemove = data->lengthOfStringToRemove - localDelLen;
@@ -226,18 +336,18 @@ static QString doContent(QDomElement elem, int startingPos, TsContentEditingData
                 }
                 cData = c.data();
             }
-            //else
-            //    if (data&&data->pos!=-1/*&& n.nextSibling().isNull()*/)
-            //        qCWarning(LOKALIZE_LOG)<<"arg!"<<startingPos<<"data->pos"<<data->pos;
 
             result += cData;
             startingPos += cData.size();
         }
         n = n.nextSibling();
     }
-    if (!seenCharacterDataAfterElement) {
-        //add empty charData child so that user could add some text
-        elem.appendChild(elem.ownerDocument().createTextNode(QString()));
+    if (!seenCDataAfterElement) {
+        //add empty cDATA child so that user could add some text
+        elem.appendChild(Settings::self()->convertXMLChars() ?
+                         elem.ownerDocument().createTextNode(QString()) :
+                         elem.ownerDocument().createCDATASection(QString())
+                        );
     }
 
     return result;
@@ -278,13 +388,25 @@ QString TsStorage::target(const DocPosition& pos) const
     return content(targetForPos(pos));
 }
 
-QString TsStorage::sourceWithPlurals(const DocPosition& pos) const
+QString TsStorage::sourceWithPlurals(const DocPosition& pos, bool truncateFirstLine) const
 {
-    return source(pos);
+    QString str = source(pos);
+    if (truncateFirstLine) {
+        int truncatePos = str.indexOf("\n");
+        if (truncatePos != -1)
+            str.truncate(truncatePos);
+    }
+    return str;
 }
-QString TsStorage::targetWithPlurals(const DocPosition& pos) const
+QString TsStorage::targetWithPlurals(const DocPosition& pos, bool truncateFirstLine) const
 {
-    return target(pos);
+    QString str = target(pos);
+    if (truncateFirstLine) {
+        int truncatePos = str.indexOf("\n");
+        if (truncatePos != -1)
+            str.truncate(truncatePos);
+    }
+    return str;
 }
 
 
@@ -296,7 +418,6 @@ void TsStorage::targetDelete(const DocPosition& pos, int count)
 
 void TsStorage::targetInsert(const DocPosition& pos, const QString& arg)
 {
-    qCWarning(LOKALIZE_LOG) << pos.entry << arg;
     QDomElement targetEl = targetForPos(pos);
     //BEGIN add <*target>
     if (targetEl.isNull()) {
@@ -305,12 +426,14 @@ void TsStorage::targetInsert(const DocPosition& pos, const QString& arg)
         targetEl = unitEl.insertAfter(m_doc.createElement(names[TargetTag]), refNode).toElement();
 
         if (pos.entry < size()) {
-            targetEl.appendChild(m_doc.createTextNode(arg));//i bet that pos.offset is 0 ;)
+            targetEl.appendChild(Settings::self()->convertXMLChars() ?
+                                 m_doc.createTextNode(arg) :
+                                 m_doc.createCDATASection(arg));//i bet that pos.offset is 0 ;)
             return;
         }
     }
     //END add <*target>
-    if (arg.isEmpty()) return; //means we were called just to add <taget> tag
+    if (arg.isEmpty()) return; //means we were called just to add <target> tag
 
     TsContentEditingData data(pos.offset, arg);
     content(targetEl, &data);
@@ -360,9 +483,13 @@ QVector<Note> TsStorage::notes(const DocPosition& pos) const
 
     QDomElement elem = unitForPos(pos.entry).firstChildElement(names[NoteTag]);
     while (!elem.isNull()) {
-        Note note;
-        note.content = elem.text();
-        result.append(note);
+        QDomNode n = elem.firstChild();
+        if (!n.isNull()) {
+            QDomCharacterData c = Settings::self()->convertXMLChars() ? n.toCharacterData() : n.toCDATASection();
+            Note note;
+            note.content = c.data();
+            result.append(note);
+        }
 
         elem = elem.nextSiblingElement(names[NoteTag]);
     }
@@ -386,28 +513,38 @@ QVector<Note> TsStorage::developerNotes(const DocPosition& pos) const
 
 Note TsStorage::setNote(DocPosition pos, const Note& note)
 {
-    //qCWarning(LOKALIZE_LOG)<<int(pos.form)<<note.content;
     QDomElement unit = unitForPos(pos.entry);
     QDomElement elem;
     Note oldNote;
     if (pos.form == -1 && !note.content.isEmpty()) {
         QDomElement ref = unit.lastChildElement(names[NoteTag]);
         elem = unit.insertAfter(m_doc.createElement(names[NoteTag]), ref).toElement();
-        elem.appendChild(m_doc.createTextNode(QString()));
+        elem.appendChild(Settings::self()->convertXMLChars() ?
+                         m_doc.createTextNode(QString()) :
+                         m_doc.createCDATASection(QString()));
     } else {
         QDomNodeList list = unit.elementsByTagName(names[NoteTag]);
         //if (pos.form==-1) pos.form=list.size()-1;
         if (pos.form < list.size()) {
             elem = unit.elementsByTagName(names[NoteTag]).at(pos.form).toElement();
-            oldNote.content = elem.text();
+            QDomNode n = elem.firstChild();
+            if (!n.isNull()) {
+                QDomCharacterData c = Settings::self()->convertXMLChars() ? n.toCharacterData() : n.toCDATASection();
+
+                oldNote.content = c.data();
+            }
         }
     }
 
     if (elem.isNull()) return oldNote;
 
-    if (!elem.text().isEmpty()) {
-        TsContentEditingData data(0, elem.text().size());
-        content(elem, &data);
+    QDomNode n = elem.firstChild();
+    if (!n.isNull()) {
+        QDomCharacterData c = Settings::self()->convertXMLChars() ? n.toCharacterData() : n.toCDATASection();
+        if (!c.data().isEmpty()) {
+            TsContentEditingData data(0, c.data().size());
+            content(elem, &data);
+        }
     }
 
     if (!note.content.isEmpty()) {
@@ -461,7 +598,7 @@ bool TsStorage::isPlural(const DocPosition& pos) const
 
 void TsStorage::setApproved(const DocPosition& pos, bool approved)
 {
-    targetInsert(pos, QString()); //adds <taget> if needed
+    targetInsert(pos, QString()); //adds <target> if needed
     QDomElement target = unitForPos(pos.entry).firstChildElement(names[TargetTag]); //asking directly to bypass plural state detection
     if (target.attribute(attrnames[TypeAttr]) == attrvalues[ObsoleteVal])
         return;

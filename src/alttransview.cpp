@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -37,7 +38,6 @@
 #include <QStringBuilder>
 #include <QDragEnterEvent>
 #include <QMimeData>
-#include <QSignalMapper>
 #include <QFileInfo>
 #include <QDir>
 #include <QToolTip>
@@ -61,7 +61,7 @@ AltTransView::AltTransView(QWidget* parent, Catalog* catalog, const QVector<QAct
     hide();
 
     m_browser->setReadOnly(true);
-    m_browser->viewport()->setBackgroundRole(QPalette::Background);
+    m_browser->viewport()->setBackgroundRole(QPalette::Window);
     QTimer::singleShot(0, this, &AltTransView::initLater);
 }
 
@@ -74,13 +74,10 @@ void AltTransView::initLater()
     m_everShown = group.readEntry("EverShown", false);
 
 
-    QSignalMapper* signalMapper = new QSignalMapper(this);
     int i = m_actions.size();
     while (--i >= 0) {
-        connect(m_actions.at(i), &QAction::triggered, signalMapper, QOverload<>::of(&QSignalMapper::map));
-        signalMapper->setMapping(m_actions.at(i), i);
+        connect(m_actions.at(i), &QAction::triggered, this, [this, i] { slotUseSuggestion(i); });
     }
-    connect(signalMapper, QOverload<int>::of(&QSignalMapper::mapped), this, &AltTransView::slotUseSuggestion);
 
     connect(m_browser, &TM::TextBrowser::textInsertRequested, this, &AltTransView::textInsertRequested);
     //connect(m_browser, &TM::TextBrowser::customContextMenuRequested, this, &AltTransView::contextMenu);
@@ -127,7 +124,7 @@ void AltTransView::fileLoaded()
 {
     m_prevEntry.entry = -1;
     QString absPath = m_catalog->url();
-    QString relPath = QDir(Project::instance()->projectDir()).relativeFilePath(absPath);
+    QString relPath = QDir(Project::instance()->poDir()).relativeFilePath(absPath);
 
     QFileInfo info(Project::instance()->altTransDir() % '/' % relPath);
     if (info.canonicalFilePath() != absPath && info.exists())
@@ -177,6 +174,8 @@ void AltTransView::process()
     }
 
     CatalogString source = m_catalog->sourceWithTags(m_entry.toDocPosition());
+    QString context = m_catalog->context(m_entry.toDocPosition()).first();
+    QString contextWithNewline = context + (context.isEmpty() ? "" : "\n");
 
     QTextBlockFormat blockFormatBase;
     QTextBlockFormat blockFormatAlternate; blockFormatAlternate.setBackground(QPalette().alternateBase());
@@ -193,7 +192,7 @@ void AltTransView::process()
         if (!entry.source.isEmpty()) {
             html += QStringLiteral("<p>");
 
-            QString result = userVisibleWordDiff(entry.source.string, source.string, Project::instance()->accel(), Project::instance()->markup()).toHtmlEscaped();
+            QString result = userVisibleWordDiff(entry.source.string, contextWithNewline + source.string, Project::instance()->accel(), Project::instance()->markup()).toHtmlEscaped();
             //result.replace("&","&amp;");
             //result.replace("<","&lt;");
             //result.replace(">","&gt;");
@@ -201,7 +200,7 @@ void AltTransView::process()
             result.replace(QStringLiteral("{/KBABELADD}"), QStringLiteral("</font>"));
             result.replace(QStringLiteral("{KBABELDEL}"), QStringLiteral("<font style=\"background-color:") % Settings::delColor().name() % QStringLiteral(";color:black\">"));
             result.replace(QStringLiteral("{/KBABELDEL}"), QStringLiteral("</font>"));
-            result.replace(QStringLiteral("\\n"), QStringLiteral("\\n<br><br>"));
+            result.replace(QStringLiteral("\\n"), QStringLiteral("\\n<br>"));
 
             html += result;
             html += QStringLiteral("<br>");

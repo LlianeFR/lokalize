@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2008-2015 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -65,6 +66,7 @@
 #include <QLabel>
 #include <QIcon>
 #include <QApplication>
+#include <QElapsedTimer>
 
 
 LokalizeMainWindow::LokalizeMainWindow()
@@ -136,6 +138,9 @@ LokalizeMainWindow::~LokalizeMainWindow()
 
     KConfig config;
     KConfigGroup stateGroup(&config, "State");
+    if (!m_lastEditorState.isEmpty()) {
+        stateGroup.writeEntry("DefaultDockWidgets", m_lastEditorState);
+    }
     saveProjectState(stateGroup);
     m_multiEditorAdaptor->deleteLater();
 
@@ -274,6 +279,7 @@ EditorTab* LokalizeMainWindow::fileOpen(QString filePath, int entry, bool setAsA
 
     QByteArray state = m_lastEditorState;
     EditorTab* w = new EditorTab(this);
+
     QMdiSubWindow* sw = 0;
     //create QMdiSubWindow BEFORE fileOpen() because it causes some strange QMdiArea behaviour otherwise
     if (filePath.length())
@@ -286,7 +292,7 @@ EditorTab* LokalizeMainWindow::fileOpen(QString filePath, int entry, bool setAsA
         if (fp.length()) suggestedDirPath = QFileInfo(fp).absolutePath();
     }
 
-    if (!w->fileOpen(filePath, suggestedDirPath, silent)) {
+    if (!w->fileOpen(filePath, suggestedDirPath, m_fileToEditor, silent)) {
         if (sw) {
             m_mdiArea->removeSubWindow(sw);
             sw->deleteLater();
@@ -294,14 +300,21 @@ EditorTab* LokalizeMainWindow::fileOpen(QString filePath, int entry, bool setAsA
         w->deleteLater();
         return 0;
     }
+    filePath = w->currentFilePath();
+    m_openRecentFileAction->addUrl(QUrl::fromLocalFile(filePath));//(w->currentUrl());
 
     if (!sw)
         sw = m_mdiArea->addSubWindow(w);
     w->showMaximized();
     sw->showMaximized();
 
-    if (!state.isEmpty())
+    if (!state.isEmpty()) {
         w->restoreState(QByteArray::fromBase64(state));
+        m_lastEditorState = state;
+    } else {
+        //Dummy restore to "initialize" widgets
+        w->restoreState(w->saveState());
+    }
 
     if (entry/* || offset*/)
         w->gotoEntry(DocPosition(entry/*, DocPosition::Target, 0, offset*/));
@@ -316,13 +329,11 @@ EditorTab* LokalizeMainWindow::fileOpen(QString filePath, int entry, bool setAsA
     if (!mergeFile.isEmpty())
         w->mergeOpen(mergeFile);
 
-    m_openRecentFileAction->addUrl(QUrl::fromLocalFile(filePath));//(w->currentUrl());
     connect(sw, &QMdiSubWindow::destroyed, this, &LokalizeMainWindow::editorClosed);
     connect(w, &EditorTab::aboutToBeClosed, this, &LokalizeMainWindow::resetMultiEditorAdaptor);
     connect(w, QOverload<const QString &, const QString &, const QString &, const bool>::of(&EditorTab::fileOpenRequested), this, QOverload<const QString &, const QString &, const QString &, const bool>::of(&LokalizeMainWindow::fileOpen));
     connect(w, QOverload<const QString &, const QString &>::of(&EditorTab::tmLookupRequested), this, QOverload<const QString &, const QString &>::of(&LokalizeMainWindow::lookupInTranslationMemory));
 
-    filePath = w->currentFilePath();
     QStringRef fnSlashed = filePath.midRef(filePath.lastIndexOf('/'));
     FileToEditor::const_iterator i = m_fileToEditor.constBegin();
     while (i != m_fileToEditor.constEnd()) {
@@ -458,8 +469,8 @@ void LokalizeMainWindow::setupActions()
     //all operations that can be done after initial setup
     //(via QTimer::singleShot) go to initLater()
 
-    QTime aaa;
-    aaa.start();
+//     QElapsedTimer aaa;
+//     aaa.start();
 
     setStandardToolBarMenuEnabled(true);
 
@@ -537,6 +548,10 @@ void LokalizeMainWindow::setupActions()
     action->setText(i18nc("@action:inmenu", "Open project..."));
     action->setIcon(QIcon::fromTheme("project-open"));
 
+    action = proj->addAction(QStringLiteral("project_close"), this, SLOT(closeProject()));
+    action->setText(i18nc("@action:inmenu", "Close project"));
+    action->setIcon(QIcon::fromTheme("project-close"));
+
     m_openRecentProjectAction = new KRecentFilesAction(i18nc("@action:inmenu", "Open recent project"), this);
     action = proj->addAction(QStringLiteral("project_open_recent"), m_openRecentProjectAction);
     connect(m_openRecentProjectAction, QOverload<const QUrl &>::of(&KRecentFilesAction::urlSelected), this, QOverload<const QUrl &>::of(&LokalizeMainWindow::openProject));
@@ -574,7 +589,8 @@ bool LokalizeMainWindow::closeProject()
             m_fileToEditor.remove(static_cast<EditorTab*>(subwindow->widget())->currentFilePath());//safety
             m_mdiArea->removeSubWindow(subwindow);
             subwindow->deleteLater();
-        }
+        } else if (subwindow == m_projectSubWindow && m_projectSubWindow)
+            static_cast<ProjectTab*>(m_projectSubWindow->widget())->showWelcomeScreen();
     }
     Project::instance()->load(QString());
     //TODO scripts
@@ -609,13 +625,17 @@ void LokalizeMainWindow::saveProjectState(KConfigGroup& stateGroup)
     QMdiSubWindow* activeSW = m_mdiArea->currentSubWindow();
     int activeSWIndex = -1;
     int i = editors.size();
+
     while (--i >= 0) {
         //if (editors.at(i)==m_projectSubWindow)
         if (!editors.at(i) || !qobject_cast<EditorTab*>(editors.at(i)->widget()))
             continue;
-        if (editors.at(i) == activeSW)
-            activeSWIndex = files.size();
+
         EditorState state = static_cast<EditorTab*>(editors.at(i)->widget())->state();
+        if (editors.at(i) == activeSW) {
+            activeSWIndex = files.size();
+            m_lastEditorState = state.dockWidgets.toBase64();
+        }
         files.append(state.filePath);
         mergeFiles.append(state.mergeFilePath);
         dockWidgets.append(state.dockWidgets.toBase64());
@@ -625,9 +645,9 @@ void LokalizeMainWindow::saveProjectState(KConfigGroup& stateGroup)
     }
     //if (activeSWIndex==-1 && activeSW==m_projectSubWindow)
 
-    if (files.size() == 0 && !m_lastEditorState.isEmpty())
+    if (files.size() == 0 && !m_lastEditorState.isEmpty()) {
         dockWidgets.append(m_lastEditorState); // save last state if no editor open
-
+    }
     if (stateGroup.isValid())
         stateGroup.writeEntry("Project", Project::instance()->path());
 
@@ -651,16 +671,13 @@ void LokalizeMainWindow::saveProjectState(KConfigGroup& stateGroup)
     if (!nameSpecifier.isEmpty()) nameSpecifier.prepend('-');
     KConfig* c = stateGroup.isValid() ? stateGroup.config() : &config;
     m_openRecentFileAction->saveEntries(KConfigGroup(c, "RecentFiles" + nameSpecifier));
-
     m_openRecentProjectAction->saveEntries(KConfigGroup(&config, "RecentProjects"));
 }
 
 void LokalizeMainWindow::readProperties(const KConfigGroup& stateGroup)
 {
     KConfig config;
-    const KConfig* c = stateGroup.isValid() ? stateGroup.config() : &config;
-    m_openRecentProjectAction->loadEntries(KConfigGroup(c, "RecentProjects"));
-
+    m_openRecentProjectAction->loadEntries(KConfigGroup(&config, "RecentProjects"));
     QString path = stateGroup.readEntry("Project", QString());
     if (Project::instance()->isLoaded() || path.isEmpty()) {
         //1. we weren't existing yet when the signal was emitted
@@ -673,8 +690,9 @@ void LokalizeMainWindow::readProperties(const KConfigGroup& stateGroup)
 void LokalizeMainWindow::projectLoaded()
 {
     QString projectPath = Project::instance()->path();
-    qCDebug(LOKALIZE_LOG) << projectPath;
-    m_openRecentProjectAction->addUrl(QUrl::fromLocalFile(projectPath));
+    qCDebug(LOKALIZE_LOG) << "Loaded project : " << projectPath;
+    if (!projectPath.isEmpty())
+        m_openRecentProjectAction->addUrl(QUrl::fromLocalFile(projectPath));
 
     KConfig config;
 
@@ -684,6 +702,7 @@ void LokalizeMainWindow::projectLoaded()
 
 
     //if project isn't loaded, still restore opened files from "State-"
+    KConfigGroup stateGroup(&config, "State");
     KConfigGroup projectStateGroup(&config, "State-" + projectPath);
 
     QStringList files;
@@ -702,7 +721,6 @@ void LokalizeMainWindow::projectLoaded()
                 if (tw->tabText(i) == w->windowTitle())
                     tw->setTabToolTip(i, Project::instance()->path());
     }
-
     entries = projectStateGroup.readEntry("Entries", entries);
 
     if (Settings::self()->restoreRecentFilesOnStartup())
@@ -713,8 +731,9 @@ void LokalizeMainWindow::projectLoaded()
     int activeSWIndex = projectStateGroup.readEntry("Active", -1);
     QStringList failedFiles;
     while (--i >= 0) {
-        if (i < dockWidgets.size())
+        if (i < dockWidgets.size()) {
             m_lastEditorState = dockWidgets.at(i);
+        }
         if (!fileOpen(files.at(i), entries.at(i)/*, offsets.at(i)*//*,&activeSW11*/, activeSWIndex == i, mergeFiles.at(i),/*silent*/true))
             failedFiles.append(files.at(i));
     }
@@ -723,12 +742,15 @@ void LokalizeMainWindow::projectLoaded()
 //         KMessageBox::error(this, i18nc("@info","Error opening the following files:")+
 //                                 "<br><il><li><filename>"+failedFiles.join("</filename></li><li><filename>")+"</filename></li></il>" );
         KNotification* notification = new KNotification("FilesOpenError", this);
-        notification->setText(i18nc("@info", "Error opening the following files:\n\n") % "<filename>" % failedFiles.join("</filename><br><filename>") % "</filename>");
+        notification->setText(i18nc("@info", "Error opening the following files:\n\n") + "<filename>" + failedFiles.join("</filename><br><filename>") + "</filename>");
         notification->sendEvent();
     }
 
-    if (files.isEmpty() && dockWidgets.size() > 0)
-        m_lastEditorState = dockWidgets.first(); // restore last state if no editor open
+    if (files.isEmpty() && dockWidgets.size() > 0) {
+        m_lastEditorState = dockWidgets.last(); // restore last state if no editor open
+    } else {
+        m_lastEditorState = stateGroup.readEntry("DefaultDockWidgets", m_lastEditorState); // restore default state if no last editor for this project
+    }
 
     if (activeSWIndex == -1) {
         m_toBeActiveSubWindow = m_projectSubWindow;

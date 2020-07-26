@@ -2,6 +2,7 @@
   This file is part of KAider
 
   Copyright (C) 2007      by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -47,7 +48,7 @@ class MyActionCollectionView : public Kross::ActionCollectionView
     Q_OBJECT
 public:
     explicit MyActionCollectionView(QWidget *parent = nullptr);
-    ~MyActionCollectionView() override;
+    ~MyActionCollectionView() override = default;
 
 public slots:
     void triggerSelectedActions();

@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -56,6 +57,15 @@ struct TMEntry {
     QString accelExpr;
     QString markupExpr;
 
+    bool operator>(const TMEntry& other) const
+    {
+        if (score == other.score) {
+            if (hits == other.hits)
+                return date > other.date;
+            return hits > other.hits;
+        }
+        return score > other.score;
+    }
     bool operator<(const TMEntry& other) const
     {
         if (score == other.score) {

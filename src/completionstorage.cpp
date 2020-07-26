@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -28,7 +29,7 @@
 #include "project.h"
 #include "prefs_lokalize.h"
 #include <QCoreApplication>
-
+#include <QElapsedTimer>
 
 CompletionStorage* CompletionStorage::_instance = 0;
 void CompletionStorage::cleanupCompletionStorage()
@@ -49,7 +50,7 @@ CompletionStorage* CompletionStorage::instance()
 void CompletionStorage::scanCatalog(Catalog* catalog)
 {
     if (!catalog->numberOfEntries()) return;
-    QTime a; a.start();
+    QElapsedTimer a; a.start();
 
     int wordCompletionLength = Settings::self()->wordCompletionLength();
     /* we can't skip the scanning because there might be explicit completion triggered

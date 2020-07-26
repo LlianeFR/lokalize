@@ -1,5 +1,6 @@
 /*
 Copyright 2008-2014 Nick Shaforostoff <shaforostoff@kde.ru>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License as
@@ -54,11 +55,6 @@ GettextStorage::GettextStorage()
     , m_maxLineLength(80)
     , m_trailingNewLines(0)
     , m_generatedFromDocbook(false)
-{
-}
-
-
-GettextStorage::~GettextStorage()
 {
 }
 
@@ -177,36 +173,60 @@ QString GettextStorage::target(const DocPosition& pos) const
 {
     return m_entries.at(pos.entry).msgstr(pos.form);
 }
-QString GettextStorage::sourceWithPlurals(const DocPosition& pos) const
+QString GettextStorage::sourceWithPlurals(const DocPosition& pos, bool truncateFirstLine) const
 {
     if (m_entries.at(pos.entry).isPlural()) {
         const QVector<QString> plurals = m_entries.at(pos.entry).msgidPlural();
         QString pluralString;
         for (int i = 0; i < plurals.size(); i++) {
-            pluralString += plurals.at(i);
+            QString str = plurals.at(i);
+            if (truncateFirstLine) {
+                int truncatePos = str.indexOf("\n");
+                if (truncatePos != -1)
+                    str.truncate(truncatePos);
+            }
+            pluralString += str;
             if (i != plurals.size() - 1) {
                 pluralString += '|';
             }
         }
         return pluralString;
     } else {
-        return m_entries.at(pos.entry).msgid(pos.form);
+        QString str = m_entries.at(pos.entry).msgid(pos.form);
+        if (truncateFirstLine) {
+            int truncatePos = str.indexOf("\n");
+            if (truncatePos != -1)
+                str.truncate(truncatePos);
+        }
+        return str;
     }
 }
-QString GettextStorage::targetWithPlurals(const DocPosition& pos) const
+QString GettextStorage::targetWithPlurals(const DocPosition& pos, bool truncateFirstLine) const
 {
     if (m_entries.at(pos.entry).isPlural()) {
         const QVector<QString> plurals = m_entries.at(pos.entry).msgstrPlural();
         QString pluralString;
         for (int i = 0; i < plurals.size(); i++) {
-            pluralString += plurals.at(i);
+            QString str = plurals.at(i);
+            if (truncateFirstLine) {
+                int truncatePos = str.indexOf("\n");
+                if (truncatePos != -1)
+                    str.truncate(truncatePos);
+            }
+            pluralString += str;
             if (i != plurals.size() - 1) {
                 pluralString += '|';
             }
         }
         return pluralString;
     } else {
-        return m_entries.at(pos.entry).msgstr(pos.form);
+        QString str = m_entries.at(pos.entry).msgstr(pos.form);
+        if (truncateFirstLine) {
+            int truncatePos = str.indexOf("\n");
+            if (truncatePos != -1)
+                str.truncate(truncatePos);
+        }
+        return str;
     }
 }
 
@@ -358,8 +378,10 @@ QStringList GettextStorage::sourceFiles(const DocPosition& pos) const
     bool hasUi = !result.isEmpty();
     static const QRegExp cpp_re(QStringLiteral("^#: "));
     foreach (const QString &cppLine, commentLines.filter(cpp_re)) {
-        if (hasUi && cppLine.startsWith(QLatin1String("#: rc.cpp"))) continue;
         foreach (const QStringRef &fileRef, cppLine.midRef(3).split(' ')) {
+            if (hasUi && fileRef.startsWith(QLatin1String("rc.cpp:"))) {
+                continue;
+            }
             result << fileRef.toString();
         }
     }

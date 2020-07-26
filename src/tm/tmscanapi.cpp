@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -56,7 +57,7 @@ bool RecursiveScanJob::doKill()
 {
 #if QT_VERSION >= 0x050500
     foreach (ScanJob* job, m_jobs)
-        TM::threadPool()->cancel(job);
+        TM::threadPool()->tryTake(job);
 #endif
     return true;
 }
@@ -72,7 +73,6 @@ void RecursiveScanJob::setJobs(const QVector<ScanJob*>& jobs)
 
 void RecursiveScanJob::scanJobFinished(ScanJobFeedingBack* j)
 {
-    j->deleteLater();
     ScanJob* job = static_cast<ScanJob*>(j);
 
     setProcessedAmount(KJob::Files, processedAmount(KJob::Files) + 1);
@@ -80,11 +80,13 @@ void RecursiveScanJob::scanJobFinished(ScanJobFeedingBack* j)
 
     setProcessedAmount(KJob::Bytes, processedAmount(KJob::Bytes) + job->m_size);
     if (m_time.elapsed()) emitSpeed(1000 * processedAmount(KJob::Bytes) / m_time.elapsed());
+}
 
-
-    if (processedAmount(KJob::Files) == totalAmount(KJob::Files)) {
+void RecursiveScanJob::scanJobDestroyed()
+{
+    m_destroyedJobs += 1;
+    if (m_destroyedJobs == totalAmount(KJob::Files)) {
         emitResult();
-        qCDebug(LOKALIZE_LOG) << "finished in" << m_time.elapsed() << "msecs";
     }
 }
 
@@ -113,6 +115,7 @@ int TM::scanRecursive(const QStringList& filePaths, const QString& dbName)
         if (Catalog::extIsSupported(filePath)) {
             ScanJobFeedingBack* job = new ScanJobFeedingBack(filePath, dbName);
             QObject::connect(job, &ScanJobFeedingBack::done, metaJob, &RecursiveScanJob::scanJobFinished);
+            QObject::connect(job, &QObject::destroyed, metaJob, &RecursiveScanJob::scanJobDestroyed);
             TM::threadPool()->start(job, SCAN);
             result.append(job);
         } else

@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -34,6 +35,7 @@
 #include <QApplication>
 #include <QPalette>
 #include <QFontMetrics>
+#include <QIcon>
 
 #define DYNAMICFILTER_LIMIT 256
 
@@ -114,21 +116,36 @@ QVariant CatalogTreeModel::headerData(int section, Qt::Orientation /*orientation
     if (role != Qt::DisplayRole)
         return QVariant();
 
-    switch (section) {
-    case Key:       return i18nc("@title:column", "Entry");
-    case Source:    return i18nc("@title:column Original text", "Source");
-    case Target:    return i18nc("@title:column Text in target language", "Target");
-    case Notes:     return i18nc("@title:column", "Notes");
-    case Context:   return i18nc("@title:column", "Context");
-    case TranslationStatus: return i18nc("@title:column", "Translation Status");
+    switch (static_cast<CatalogModelColumns>(section)) {
+    case CatalogModelColumns::Key:
+        return i18nc("@title:column", "Entry");
+    case CatalogModelColumns::Source:
+        return i18nc("@title:column Original text", "Source");
+    case CatalogModelColumns::Target:
+        return i18nc("@title:column Text in target language", "Target");
+    case CatalogModelColumns::Notes:
+        return i18nc("@title:column", "Notes");
+    case CatalogModelColumns::Context:
+        return i18nc("@title:column", "Context");
+    case CatalogModelColumns::Files:
+        return i18nc("@title:column", "Files");
+    case CatalogModelColumns::TranslationStatus:
+        return i18nc("@title:column", "Translation Status");
+    case CatalogModelColumns::SourceLength:
+        return i18nc("@title:column Length of the original text", "Source length");
+    case CatalogModelColumns::TargetLength:
+        return i18nc("@title:column Length of the text in target language", "Target length");
+    default:
+        return {};
     }
-    return QVariant();
 }
 
 QVariant CatalogTreeModel::data(const QModelIndex& index, int role) const
 {
     if (m_catalog->numberOfEntries() <= index.row())
         return QVariant();
+
+    const CatalogModelColumns column = static_cast<CatalogModelColumns>(index.column());
 
     if (role == Qt::SizeHintRole) {
         //no need to cache because of uniform row heights
@@ -146,22 +163,60 @@ QVariant CatalogTreeModel::data(const QModelIndex& index, int role) const
             static KColorScheme colorScheme(QPalette::Normal);
             return colorScheme.foreground(KColorScheme::InactiveText);
         }
+    } else if (role == Qt::ToolTipRole) {
+        if (column != CatalogModelColumns::TranslationStatus) {
+            return {};
+        }
+
+        switch (getTranslationStatus(index.row())) {
+        case TranslationStatus::Ready:
+            return i18nc("@info:status 'non-fuzzy' in gettext terminology", "Ready");
+        case TranslationStatus::NeedsReview:
+            return i18nc("@info:status 'fuzzy' in gettext terminology", "Needs review");
+        case TranslationStatus::Untranslated:
+            return i18nc("@info:status", "Untranslated");
+        }
+    } else if (role == Qt::DecorationRole) {
+        if (column != CatalogModelColumns::TranslationStatus) {
+            return {};
+        }
+
+        switch (getTranslationStatus(index.row())) {
+        case TranslationStatus::Ready:
+            return QIcon::fromTheme("emblem-checked");
+        case TranslationStatus::NeedsReview:
+            return QIcon::fromTheme("emblem-question");
+        case TranslationStatus::Untranslated:
+            return QIcon::fromTheme("emblem-unavailable");
+        }
     } else if (role == Qt::UserRole) {
-        switch (index.column()) {
-        case TranslationStatus:   return m_catalog->isApproved(index.row());
-        case IsEmpty:     return m_catalog->isEmpty(index.row());
-        case State:     return int(m_catalog->state(index.row()));
-        case IsModified:  return m_catalog->isModified(index.row());
-        case IsPlural:  return m_catalog->isPlural(index.row());
-        default:        role = Qt::DisplayRole;
+        switch (column) {
+        case CatalogModelColumns::TranslationStatus:
+            return m_catalog->isApproved(index.row());
+        case CatalogModelColumns::IsEmpty:
+            return m_catalog->isEmpty(index.row());
+        case CatalogModelColumns::State:
+            return int(m_catalog->state(index.row()));
+        case CatalogModelColumns::IsModified:
+            return m_catalog->isModified(index.row());
+        case CatalogModelColumns::IsPlural:
+            return m_catalog->isPlural(index.row());
+        default:
+            role = Qt::DisplayRole;
         }
     } else if (role == StringFilterRole) { //exclude UI strings
-        if (index.column() >= TranslationStatus)
+        if (column >= CatalogModelColumns::TranslationStatus)
             return QVariant();
-        else if (index.column() == Source || index.column() == Target) {
-            QString str = index.column() == Source ? m_catalog->msgidWithPlurals(index.row()) : m_catalog->msgstrWithPlurals(index.row());
+        else if (column == CatalogModelColumns::Source || column == CatalogModelColumns::Target) {
+            QString str = column == CatalogModelColumns::Source ? m_catalog->msgidWithPlurals(index.row(), false) : m_catalog->msgstrWithPlurals(index.row(), false);
             return m_ignoreAccel ? str.remove(Project::instance()->accel()) : str;
         }
+        role = Qt::DisplayRole;
+    } else if (role == SortRole) { //exclude UI strings
+        if (column == CatalogModelColumns::TranslationStatus) {
+            return static_cast<int>(getTranslationStatus(index.row()));
+        }
+
         role = Qt::DisplayRole;
     }
     if (role != Qt::DisplayRole)
@@ -169,40 +224,55 @@ QVariant CatalogTreeModel::data(const QModelIndex& index, int role) const
 
 
 
-    switch (index.column()) {
-    case Key:    return index.row() + 1;
-    case Source:
-        return m_catalog->msgidWithPlurals(index.row());
-    case Target:
-        return m_catalog->msgstrWithPlurals(index.row());
-    case Notes: {
+    switch (column) {
+    case CatalogModelColumns::Key:
+        return index.row() + 1;
+    case CatalogModelColumns::Source:
+        return m_catalog->msgidWithPlurals(index.row(), true);
+    case CatalogModelColumns::Target:
+        return m_catalog->msgstrWithPlurals(index.row(), true);
+    case CatalogModelColumns::Notes: {
         QString result;
         foreach (const Note &note, m_catalog->notes(index.row()))
             result += note.content;
         return result;
     }
-    case Context: return m_catalog->context(index.row());
-    case TranslationStatus:
-        static QString statuses[] = {i18nc("@info:status 'non-fuzzy' in gettext terminology", "Ready"),
-                                     i18nc("@info:status 'fuzzy' in gettext terminology", "Needs review"),
-                                     i18nc("@info:status", "Untranslated")
-                                    };
-        if (m_catalog->isEmpty(index.row()))
-            return statuses[2];
-        return statuses[!m_catalog->isApproved(index.row())];
+    case CatalogModelColumns::Context:
+        return m_catalog->context(index.row());
+    case CatalogModelColumns::Files:
+        return m_catalog->sourceFiles(index.row()).join('|');
+    case CatalogModelColumns::SourceLength:
+        return m_catalog->msgidWithPlurals(index.row(), false).length();
+    case CatalogModelColumns::TargetLength:
+        return m_catalog->msgstrWithPlurals(index.row(), false).length();
+    default:
+        return {};
     }
-    return QVariant();
+}
+
+CatalogTreeModel::TranslationStatus CatalogTreeModel::getTranslationStatus(int row) const
+{
+    if (m_catalog->isEmpty(row)) {
+        return CatalogTreeModel::TranslationStatus::Untranslated;
+    }
+
+    if (m_catalog->isApproved(row)) {
+        return CatalogTreeModel::TranslationStatus::Ready;
+    } else {
+        return CatalogTreeModel::TranslationStatus::NeedsReview;
+    }
 }
 
 CatalogTreeFilterModel::CatalogTreeFilterModel(QObject* parent)
     : QSortFilterProxyModel(parent)
-    , m_filerOptions(AllStates)
+    , m_filterOptions(AllStates)
     , m_individualRejectFilterEnable(false)
     , m_mergeCatalog(NULL)
 {
     setFilterKeyColumn(-1);
     setFilterCaseSensitivity(Qt::CaseInsensitive);
     setFilterRole(CatalogTreeModel::StringFilterRole);
+    setSortRole(CatalogTreeModel::SortRole);
     setDynamicSortFilter(false);
 }
 
@@ -233,9 +303,9 @@ void CatalogTreeFilterModel::setEntryFilteredOut(int entry, bool filteredOut)
     invalidateFilter();
 }
 
-void CatalogTreeFilterModel::setFilerOptions(int o)
+void CatalogTreeFilterModel::setFilterOptions(int o)
 {
-    m_filerOptions = o;
+    m_filterOptions = o;
     setFilterCaseSensitivity(o & CaseInsensitive ? Qt::CaseInsensitive : Qt::CaseSensitive);
     static_cast<CatalogTreeModel*>(sourceModel())->setIgnoreAccel(o & IgnoreAccel);
     invalidateFilter();
@@ -243,22 +313,22 @@ void CatalogTreeFilterModel::setFilerOptions(int o)
 
 bool CatalogTreeFilterModel::filterAcceptsRow(int source_row, const QModelIndex& source_parent) const
 {
-    int filerOptions = m_filerOptions;
+    int filerOptions = m_filterOptions;
     bool accepts = true;
     if (bool(filerOptions & Ready) != bool(filerOptions & NotReady)) {
-        bool ready = sourceModel()->index(source_row, CatalogTreeModel::TranslationStatus, source_parent).data(Qt::UserRole).toBool();
+        bool ready = sourceModel()->index(source_row, static_cast<int>(CatalogTreeModel::CatalogModelColumns::TranslationStatus), source_parent).data(Qt::UserRole).toBool();
         accepts = (ready == bool(filerOptions & Ready) || ready != bool(filerOptions & NotReady));
     }
     if (accepts && bool(filerOptions & NonEmpty) != bool(filerOptions & Empty)) {
-        bool untr = sourceModel()->index(source_row, CatalogTreeModel::IsEmpty, source_parent).data(Qt::UserRole).toBool();
+        bool untr = sourceModel()->index(source_row, static_cast<int>(CatalogTreeModel::CatalogModelColumns::IsEmpty), source_parent).data(Qt::UserRole).toBool();
         accepts = (untr == bool(filerOptions & Empty) || untr != bool(filerOptions & NonEmpty));
     }
     if (accepts && bool(filerOptions & Modified) != bool(filerOptions & NonModified)) {
-        bool modified = sourceModel()->index(source_row, CatalogTreeModel::IsModified, source_parent).data(Qt::UserRole).toBool();
+        bool modified = sourceModel()->index(source_row, static_cast<int>(CatalogTreeModel::CatalogModelColumns::IsModified), source_parent).data(Qt::UserRole).toBool();
         accepts = (modified == bool(filerOptions & Modified) || modified != bool(filerOptions & NonModified));
     }
     if (accepts && bool(filerOptions & Plural) != bool(filerOptions & NonPlural)) {
-        bool modified = sourceModel()->index(source_row, CatalogTreeModel::IsPlural, source_parent).data(Qt::UserRole).toBool();
+        bool modified = sourceModel()->index(source_row, static_cast<int>(CatalogTreeModel::CatalogModelColumns::IsPlural), source_parent).data(Qt::UserRole).toBool();
         accepts = (modified == bool(filerOptions & Plural) || modified != bool(filerOptions & NonPlural));
     }
 
@@ -282,7 +352,7 @@ bool CatalogTreeFilterModel::filterAcceptsRow(int source_row, const QModelIndex&
     }
 
     if (accepts && (filerOptions & STATES) != STATES) {
-        int state = sourceModel()->index(source_row, CatalogTreeModel::State, source_parent).data(Qt::UserRole).toInt();
+        int state = sourceModel()->index(source_row, static_cast<int>(CatalogTreeModel::CatalogModelColumns::State), source_parent).data(Qt::UserRole).toInt();
         accepts = (filerOptions & (1 << (state + FIRSTSTATEPOSITION)));
     }
 

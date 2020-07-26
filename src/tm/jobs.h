@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -89,7 +90,7 @@ public:
     };
 
     explicit OpenDBJob(const QString& dbName, DbType type = TM::Local, bool reconnect = false, const ConnectionParams& connParams = ConnectionParams());
-    ~OpenDBJob();
+    ~OpenDBJob() override = default;
 
     int priority() const
     {
@@ -308,7 +309,7 @@ class ScanJob: public QRunnable
 {
 public:
     explicit ScanJob(const QString& filePath, const QString& dbName);
-    ~ScanJob();
+    ~ScanJob() override = default;
 
     int priority() const
     {
@@ -361,7 +362,7 @@ public:
         : QObject(), QRunnable()
         , m_view(view)
     {}
-    ~BatchSelectFinishedJob() override {}
+    ~BatchSelectFinishedJob() override = default;
 
     int priority() const
     {

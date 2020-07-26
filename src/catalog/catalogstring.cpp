@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2008-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -280,7 +281,7 @@ void adaptCatalogString(CatalogString& target, const CatalogString& ref)
     QList<InlineTag> oldTags = target.tags;
     target.tags.clear();
     //we actually walking from beginning to end:
-    qSort(oldTags.begin(), oldTags.end(), qGreater<InlineTag>());
+    std::sort(oldTags.begin(), oldTags.end(), std::greater<InlineTag>());
     i = oldTags.size();
     while (--i >= 0) {
         const InlineTag& targetTag = oldTags.at(i);
@@ -303,7 +304,7 @@ void adaptCatalogString(CatalogString& target, const CatalogString& ref)
             QList<InlineTag> possibleRefMatches;
             foreach (int i, tagType2tagIndex.values(targetTag.type))
                 possibleRefMatches << ref.tags.at(i);
-            qSort(possibleRefMatches);
+            std::sort(possibleRefMatches.begin(), possibleRefMatches.end());
             qCWarning(LOKALIZE_LOG) << "setting id:" << targetTag.id << possibleRefMatches.first().id;
             targetTag.id = possibleRefMatches.first().id;
 

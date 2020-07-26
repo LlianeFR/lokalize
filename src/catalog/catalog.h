@@ -5,6 +5,7 @@
   Copyright (C) 1999-2000   by Matthias Kiefer <matthias.kiefer@gmx.de>
                 2001-2004   by Stanislav Visnovsky <visnovsky@kde.org>
                 2007-2014   by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -84,8 +85,8 @@ public:
 
     QString msgid(const DocPosition&) const;
     virtual QString msgstr(const DocPosition&) const;
-    QString msgidWithPlurals(const DocPosition&) const;
-    QString msgstrWithPlurals(const DocPosition&) const;
+    QString msgidWithPlurals(const DocPosition&, bool truncateFirstLine) const;
+    QString msgstrWithPlurals(const DocPosition&, bool truncateFirstLine) const;
 
     static QStringList supportedExtensions();
     static bool extIsSupported(const QString& path);
@@ -179,7 +180,7 @@ public slots: //DBus interface
     int numberOfEntries() const;
     int numberOfNonApproved() const
     {
-        return d._nonApprovedIndex.size();
+        return d._nonApprovedNonEmptyIndex.size();
     }
     int numberOfUntranslated() const
     {

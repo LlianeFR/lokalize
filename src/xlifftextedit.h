@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -63,6 +64,7 @@ public:
         Q_UNUSED(block);
         return true;
     }
+    void insertPlainTextWithCursorCheck(const QString &text);
 
 public slots:
     void reflectApprovementState();
@@ -76,10 +78,12 @@ public slots:
     void tagImmediate();
     void insertTag(InlineTag tag);
     void spellReplace();
+    void launchLanguageTool();
 
     void emitCursorPositionChanged();//for leds
 
     void doExplicitCompletion();
+    void zoomRequestedSlot(qreal fontSize);
 
 protected:
     void keyPressEvent(QKeyEvent *keyEvent) override;
@@ -112,6 +116,9 @@ private slots:
     void completionActivated(const QString&);
     void fileLoaded();
 
+    void slotLanguageToolFinished(const QString &result);
+    void slotLanguageToolError(const QString &str);
+
 signals:
     void toggleApprovementRequested();
     void undoRequested();
@@ -130,11 +137,13 @@ signals:
     void gotoPrevFuzzyUntrRequested();
     void gotoNextFuzzyUntrRequested();
     void gotoEntryRequested(const DocPosition&);
+    void zoomRequested(qreal);
 
 
     void tagInsertRequested(const InlineTag& tag);
 
     void binaryUnitSelectRequested(const QString&);
+    void languageToolChanged(const QString&);
     void tmLookupRequested(DocPosition::Part, const QString&);
 
     void contentsModified(const DocPosition&);
@@ -163,6 +172,9 @@ private:
     //For text move with mouse
     int m_cursorSelectionStart;
     int m_cursorSelectionEnd;
+
+    //For LanguageTool timer
+    QTimer* m_languageToolTimer;
 };
 
 

@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -26,13 +27,13 @@
 
 #include <QSyntaxHighlighter>
 #include <sonnet/highlighter.h>
+#include <sonnet/speller.h>
 #include <kcolorscheme.h>
 
 #include <QHash>
 #include <QTextCharFormat>
 
 
-class QTextDocument;
 class QTextEdit;
 
 class SyntaxHighlighter : public Sonnet::Highlighter
@@ -41,7 +42,7 @@ class SyntaxHighlighter : public Sonnet::Highlighter
 
 public:
     explicit SyntaxHighlighter(QTextEdit *parent);
-    ~SyntaxHighlighter() override {}
+    ~SyntaxHighlighter() override = default;
 
     void setApprovementState(bool a)
     {

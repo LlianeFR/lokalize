@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2008-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -57,7 +58,8 @@ static const langPInfo langsWithPInfo[] = {
     { "ar", "nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;" },
     { "be@latin", "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);" },
     { "be", "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);" },
-    { "br", "nplurals=1; plural=0;" },
+    { "bg", "nplurals=2; plural=(n != 1);" },
+    { "br", "nplurals=2; plural=(n > 1);" },
     { "bs", "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;" },
     { "csb", "nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)" },
     { "cs", "nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;" },
@@ -84,7 +86,7 @@ static const langPInfo langsWithPInfo[] = {
     { "hsb", "nplurals=4; plural=n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3;" },
     { "hu", "nplurals=2; plural=(n != 1);" },
     { "hy", "nplurals=4; plural=n==1 ? 3 : n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;" },
-    { "id", "nplurals=1; plural=0;" },
+    { "id", "nplurals=2; plural=(n != 1);" },
     { "it", "nplurals=2; plural=(n != 1);" },
     { "ja", "nplurals=1; plural=0;" },
     { "ka", "nplurals=1; plural=0;" },
@@ -112,7 +114,7 @@ static const langPInfo langsWithPInfo[] = {
     { "sr", "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);" },
     { "sr@latin", "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);" },
     { "sv", "nplurals=2; plural=(n != 1);" },
-    { "te", "nplurals=5; plural=n==1 ? 0 : n==2 ? 1 : n<7 ? 2 : n<11 ? 3 : 4;" },
+    { "te", "nplurals=2; plural=(n != 1);" },
     { "th", "nplurals=1; plural=0;" },
     { "tr", "nplurals=2; plural=(n > 1);" },
     { "ug", "nplurals=1; plural=0;" },
@@ -123,6 +125,7 @@ static const langPInfo langsWithPInfo[] = {
     { "zh_CN", "nplurals=1; plural=0;" },
     { "zh_HK", "nplurals=1; plural=0;" },
     { "zh_TW", "nplurals=1; plural=0;" }
+
 };
 
 static const size_t langsWithPInfoCount = sizeof(langsWithPInfo) / sizeof(langsWithPInfo[0]);
@@ -233,6 +236,17 @@ QString GNUPluralForms(const QString& lang)
     //END alternative
 }
 
+QString formatGettextDate(const QDateTime &dt)
+{
+    QLocale cLocale(QLocale::C);
+    QString dateTimeString = cLocale.toString(dt, QStringLiteral("yyyy-MM-dd HH:mm"));
+    const int offset_seconds = dt.offsetFromUtc();
+    const int offset_hours = abs(offset_seconds) / 3600;
+    const int offset_minutes = abs(offset_seconds % 3600) / 60;
+    QString zoneOffsetString = (offset_seconds >= 0 ? '+' : '-') + (offset_hours < 10 ? QStringLiteral("0") : QStringLiteral("")) + QString::number(offset_hours) + (offset_minutes < 10 ? QStringLiteral("0") : QStringLiteral("")) + QString::number(offset_minutes);
+
+    return dateTimeString + zoneOffsetString;
+}
 
 void updateHeader(QString& header,
                   QString& comment,
@@ -277,8 +291,8 @@ void updateHeader(QString& header,
     bool found = false;
     authorNameEmail = Settings::authorName();
     if (!Settings::authorEmail().isEmpty())
-        authorNameEmail += (QStringLiteral(" <") % Settings::authorEmail() % '>');
-    temp = QStringLiteral("Last-Translator: ") % authorNameEmail % BACKSLASH_N;
+        authorNameEmail += (QStringLiteral(" <") + Settings::authorEmail() + '>');
+    temp = QStringLiteral("Last-Translator: ") + authorNameEmail + BACKSLASH_N;
 
     QRegExp lt(QStringLiteral("^ *Last-Translator:.*"));
     for (it = headerList.begin(), found = false; it != headerList.end() && !found; ++it) {
@@ -290,13 +304,7 @@ void updateHeader(QString& header,
     if (Q_UNLIKELY(!found))
         headerList.append(temp);
 
-    QLocale cLocale(QLocale::C);
-    QString dateTimeString = cLocale.toString(QDateTime::currentDateTime(), QStringLiteral("yyyy-MM-dd hh:mm"));
-    const int offset_seconds = QDateTime::currentDateTime().offsetFromUtc();
-    const int offset_hours = abs(offset_seconds) / 3600;
-    const int offset_minutes = abs(offset_seconds % 3600) / 60;
-    QString zoneOffsetString = (offset_seconds >= 0 ? '+' : '-') % (offset_hours < 10 ? QStringLiteral("0") : QStringLiteral("")) % QString::number(offset_hours) % (offset_minutes < 10 ? QStringLiteral("0") : QStringLiteral("")) % QString::number(offset_minutes);
-    temp = QStringLiteral("PO-Revision-Date: ") % dateTimeString % zoneOffsetString % BACKSLASH_N;
+    temp = QStringLiteral("PO-Revision-Date: ") + formatGettextDate(QDateTime::currentDateTime()) + BACKSLASH_N;
     QRegExp poRevDate(QStringLiteral("^ *PO-Revision-Date:.*"));
     for (it = headerList.begin(), found = false; it != headerList.end() && !found; ++it) {
         found = it->contains(poRevDate);
@@ -305,7 +313,7 @@ void updateHeader(QString& header,
     if (Q_UNLIKELY(!found))
         headerList.append(temp);
 
-    temp = QStringLiteral("Project-Id-Version: ") % CatalogProjectId % BACKSLASH_N;
+    temp = QStringLiteral("Project-Id-Version: ") + CatalogProjectId + BACKSLASH_N;
     //temp.replace( "@PACKAGE@", packageName());
     QRegExp projectIdVer(QStringLiteral("^ *Project-Id-Version:.*"));
     for (it = headerList.begin(), found = false; it != headerList.end() && !found; ++it) {
@@ -362,14 +370,22 @@ void updateHeader(QString& header,
 
 
 
-    temp = QStringLiteral("Language-Team: ") % language % QStringLiteral(" <") % mailingList % QStringLiteral(">\\n");
+    Project::LangSource projLangSource = Project::instance()->languageSource();
+    QString projLT = Project::instance()->projLangTeam();
+    if (projLangSource == Project::LangSource::Project) {
+        temp = QStringLiteral("Language-Team: ") + projLT + QStringLiteral("\\n");
+    } else if ((projLangSource == Project::LangSource::Application) && (Settings::overrideLangTeam())) {
+        temp = QStringLiteral("Language-Team: ") + Settings::userLangTeam() + QStringLiteral("\\n");
+    } else {
+        temp = QStringLiteral("Language-Team: ") + language + QStringLiteral(" <") + mailingList + QStringLiteral(">\\n");
+    }
     if (Q_LIKELY(found))
         (*ait) = temp;
     else
         headerList.append(temp);
 
     static QRegExp langCodeRegExp(QStringLiteral("^ *Language: *([^ \\\\]*)"));
-    temp = QStringLiteral("Language: ") % langCode % BACKSLASH_N;
+    temp = QStringLiteral("Language: ") + langCode + BACKSLASH_N;
     for (it = headerList.begin(), found = false; it != headerList.end() && !found; ++it) {
         found = (langCodeRegExp.indexIn(*it) != -1);
         if (found && langCodeRegExp.cap(1).isEmpty())
@@ -379,7 +395,7 @@ void updateHeader(QString& header,
     if (Q_UNLIKELY(!found))
         headerList.append(temp);
 
-    temp = QStringLiteral("Content-Type: text/plain; charset=") % codec->name() % BACKSLASH_N;
+    temp = QStringLiteral("Content-Type: text/plain; charset=") + codec->name() + BACKSLASH_N;
     QRegExp ctRe(QStringLiteral("^ *Content-Type:.*"));
     for (it = headerList.begin(), found = false; it != headerList.end() && !found; ++it) {
         found = it->contains(ctRe);
@@ -463,12 +479,14 @@ void updateHeader(QString& header,
 //END header itself
 
 //BEGIN comment = description, copyrights
+    QLocale cLocale(QLocale::C);
     // U+00A9 is the Copyright sign
     QRegExp fsfc(QStringLiteral("^# *Copyright (\\(C\\)|\\x00a9).*Free Software Foundation, Inc"));
     for (it = commentList.begin(), found = false; it != commentList.end() && !found; ++it) {
         found = it->contains(fsfc) ;
-        if (found)
+        if (found) {
             it->replace(QStringLiteral("YEAR"), cLocale.toString(QDate::currentDate(), QStringLiteral("yyyy")));
+        }
     }
     /*
                                     if( saveOptions.FSFCopyright == ProjectSettingsBase::Update )
@@ -550,7 +568,7 @@ void updateHeader(QString& header,
 //                        return;
     QStringList foundAuthors;
 
-    temp = QStringLiteral("# ") % authorNameEmail % QStringLiteral(", ") % cLocale.toString(QDate::currentDate(), QStringLiteral("yyyy")) % '.';
+    temp = QStringLiteral("# ") + authorNameEmail + QStringLiteral(", ") + cLocale.toString(QDate::currentDate(), QStringLiteral("yyyy")) + '.';
 
     // ### TODO: it would be nice if the entry could start with "COPYRIGHT" and have the "(C)" symbol (both not mandatory)
     QRegExp regexpAuthorYear(QStringLiteral("^#.*(<.+@.+>)?,\\s*([\\d]+[\\d\\-, ]*|YEAR)"));
@@ -613,9 +631,9 @@ void updateHeader(QString& header,
                     //update years
                     const int index = (*ait).lastIndexOf(QRegExp(QStringLiteral("[\\d]+[\\d\\-, ]*")));
                     if (index == -1)
-                        (*ait) += QStringLiteral(", ") % cy;
+                        (*ait) += QStringLiteral(", ") + cy;
                     else
-                        ait->insert(index + 1, QStringLiteral(", ") % cy);
+                        ait->insert(index + 1, QStringLiteral(", ") + cy);
                 } else
                     qCDebug(LOKALIZE_LOG) << "INTERNAL ERROR: author found but iterator dangling!";
             }

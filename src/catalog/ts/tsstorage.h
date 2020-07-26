@@ -1,5 +1,6 @@
 /*
 Copyright 2008-2014 Nick Shaforostoff <shaforostoff@gmail.com>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License as
@@ -33,7 +34,7 @@ class TsStorage: public CatalogStorage
 {
 public:
     TsStorage();
-    ~TsStorage() override;
+    ~TsStorage() override = default;
 
     int capabilities() const override;
 
@@ -46,8 +47,8 @@ public:
     //flat-model interface (ignores TS grouping)
     QString source(const DocPosition& pos) const override;
     QString target(const DocPosition& pos) const override;
-    QString sourceWithPlurals(const DocPosition& pos) const override;
-    QString targetWithPlurals(const DocPosition& pos) const override;
+    QString sourceWithPlurals(const DocPosition& pos, bool truncateFirstLine) const override;
+    QString targetWithPlurals(const DocPosition& pos, bool truncateFirstLine) const override;
     CatalogString targetWithTags(DocPosition pos) const override;
     CatalogString sourceWithTags(DocPosition pos) const override;
     CatalogString catalogString(const DocPosition& pos) const override;
@@ -110,7 +111,6 @@ private:
     QDomElement targetForPos(DocPosition pos) const;
     QDomElement sourceForPos(int pos) const;
     CatalogString catalogString(QDomElement contentElement) const;
-
 private:
     mutable QDomDocument m_doc;
 

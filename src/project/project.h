@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -27,6 +28,7 @@
 
 #include <QVector>
 #include <QList>
+#include <QFileSystemWatcher>
 #include "projectbase.h"
 
 #define WEBQUERY_ENABLE
@@ -148,6 +150,7 @@ public slots:
     }
 
     Q_SCRIPTABLE QString absolutePath(const QString&) const;
+    Q_SCRIPTABLE QString relativePath(const QString&) const;
 
     Q_SCRIPTABLE void setDesirablePath(const QString& path)
     {
@@ -189,6 +192,7 @@ public:
     void resetSourceFilePaths()
     {
         m_sourceFilePaths.clear();
+        m_sourceFilePathsReady = false;
     }
 
     friend class FillSourceFilePathsJob;
@@ -198,6 +202,7 @@ signals:
 private:
     QString m_path;
     QString m_desirablePath;
+    QFileSystemWatcher* m_projectFileWatcher;
     ProjectLocal* m_localConfig;
     ProjectModel* m_model;
     GlossaryNS::Glossary* m_glossary;
@@ -205,6 +210,7 @@ private:
     TM::TMManagerWin* m_tmManagerWindow;
 
     QMultiMap<QByteArray, QByteArray> m_sourceFilePaths;
+    bool m_sourceFilePathsReady;
 
     //cache
     QString m_projectDir;

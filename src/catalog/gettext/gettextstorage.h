@@ -1,5 +1,6 @@
 /*
 Copyright 2008-2014 Nick Shaforostoff <shaforostoff@gmail.com>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License as
@@ -41,7 +42,7 @@ class GettextStorage: public CatalogStorage
 {
 public:
     GettextStorage();
-    ~GettextStorage() override;
+    ~GettextStorage() override = default;
 
     int capabilities() const override
     {
@@ -56,8 +57,8 @@ public:
     //flat-model interface (ignores XLIFF grouping)
     QString source(const DocPosition& pos) const override;
     QString target(const DocPosition& pos) const override;
-    QString sourceWithPlurals(const DocPosition& pos) const override;
-    QString targetWithPlurals(const DocPosition& pos) const override;
+    QString sourceWithPlurals(const DocPosition& pos, bool truncateFirstLine) const override;
+    QString targetWithPlurals(const DocPosition& pos, bool truncateFirstLine) const override;
     CatalogString sourceWithTags(DocPosition pos) const override;
     CatalogString targetWithTags(DocPosition pos) const override;
     CatalogString catalogString(const DocPosition& pos) const override

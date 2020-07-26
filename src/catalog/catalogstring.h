@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2008-2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -44,7 +45,7 @@
 struct InlineTag {
     //sub       = can contain <sub>-flow tag
     //recursive = can contain other inline markup tags
-    ///@see http://docs.oasis-open.org/xliff/v1.2/os/xliff-core.html
+    ///@see https://docs.oasis-open.org/xliff/v1.2/os/xliff-core.html
     enum InlineElement {
         _unknown,
         bpt,    //sub
@@ -123,6 +124,11 @@ struct InlineTag {
     bool operator<(const InlineTag& other)const
     {
         return start < other.start;
+    }
+
+    bool operator>(const InlineTag& other)const
+    {
+        return start > other.start;
     }
 
 };

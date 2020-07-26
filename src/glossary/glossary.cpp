@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2011 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -32,7 +33,7 @@
 #include "domroutines.h"
 
 #include <QStringBuilder>
-#include <QTime>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QXmlSimpleReader>
 #include <QXmlStreamReader>
@@ -70,7 +71,7 @@ Glossary::Glossary(QObject* parent)
 //BEGIN DISK
 bool Glossary::load(const QString& newPath)
 {
-    QTime a; a.start();
+    QElapsedTimer a; a.start();
 //BEGIN NEW
     QIODevice* device = new QFile(newPath);
     if (!device->open(QFile::ReadOnly | QFile::Text)) {
@@ -90,7 +91,7 @@ bool Glossary::load(const QString& newPath)
     }
 
     QXmlSimpleReader reader;
-    //reader.setFeature("http://qtsoftware.com/xml/features/report-whitespace-only-CharData",true);
+    reader.setFeature("http://qt-project.org/xml/features/report-whitespace-only-CharData", true);
     reader.setFeature("http://xml.org/sax/features/namespaces", false);
     QXmlInputSource source(device);
 
@@ -181,7 +182,6 @@ void GlossarySortFilterProxyModel::fetchMore(const QModelIndex&)
     int expectedCount = rowCount() + FETCH_SIZE / 2;
     while (rowCount(QModelIndex()) < expectedCount && sourceModel()->canFetchMore(QModelIndex())) {
         sourceModel()->fetchMore(QModelIndex());
-        //qCDebug(LOKALIZE_LOG)<<"filter:"<<rowCount(QModelIndex())<<"/"<<sourceModel()->rowCount();
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents | QEventLoop::ExcludeSocketNotifiers);
     }
 }
@@ -292,7 +292,7 @@ QByteArray Glossary::generateNewId()
 
     QString authorId(Settings::authorName().toLower());
     authorId.replace(' ', '_');
-    QRegExp rx('^' % authorId % QStringLiteral("\\-([0-9]*)$"));
+    QRegExp rx('^' + authorId + QStringLiteral("\\-([0-9]*)$"));
 
 
     foreach (const QByteArray& id, m_idsForEntriesById) {
@@ -307,7 +307,7 @@ QByteArray Glossary::generateNewId()
     }
 
     if (!busyIdNumbers.isEmpty()) {
-        qSort(busyIdNumbers);
+        std::sort(busyIdNumbers.begin(), busyIdNumbers.end());
         while (busyIdNumbers.contains(idNumber))
             ++idNumber;
     }
@@ -320,7 +320,7 @@ QStringList Glossary::subjectFields() const
     QSet<QString> result;
     foreach (const QByteArray& id, m_idsForEntriesById)
         result.insert(subjectField(id));
-    return result.toList();
+    return result.values();
 }
 
 QByteArray Glossary::id(int index) const
@@ -367,7 +367,6 @@ static void getElementsForTermLangIndex(QDomElement termEntry, QString& lang, in
     QString minusLang = lang; minusLang.replace('_', '-');
     QStringRef soleLang = lang.leftRef(2);
 
-    //qCDebug(LOKALIZE_LOG)<<"started walking over"<<lang<<index;
     QDomElement n = termEntry.firstChildElement(langSet);
     QDomDocument document = n.ownerDocument();
     int i = 0;
@@ -378,7 +377,6 @@ static void getElementsForTermLangIndex(QDomElement termEntry, QString& lang, in
             ourLangSetElement = n;
             QDomElement ntigElem = n.firstChildElement(ntig);
             while (!ntigElem.isNull()) {
-                //qCDebug(LOKALIZE_LOG)<<i<<ntigElem.firstChildElement(termGrp).firstChildElement(term).text();
                 if (i == index) {
                     tigElement = ntigElem;
                     termElement = ntigElem.firstChildElement(termGrp).firstChildElement(term);

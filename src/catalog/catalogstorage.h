@@ -1,5 +1,6 @@
 /*
 Copyright 2008-2009 Nick Shaforostoff <shaforostoff@kde.ru>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License as
@@ -69,8 +70,8 @@ public:
     **/
     virtual QString source(const DocPosition& pos) const = 0;
     virtual QString target(const DocPosition& pos) const = 0;
-    virtual QString sourceWithPlurals(const DocPosition& pos) const = 0;
-    virtual QString targetWithPlurals(const DocPosition& pos) const = 0;
+    virtual QString sourceWithPlurals(const DocPosition& pos, bool truncateFirstLine) const = 0;
+    virtual QString targetWithPlurals(const DocPosition& pos, bool truncateFirstLine) const = 0;
     virtual CatalogString sourceWithTags(DocPosition pos) const = 0;
     virtual CatalogString targetWithTags(DocPosition pos) const = 0;
     virtual CatalogString catalogString(const DocPosition& pos) const = 0;

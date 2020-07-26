@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2013 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -43,27 +44,41 @@ class CatalogTreeModel: public QAbstractItemModel
     Q_OBJECT
 public:
 
-    enum CatalogModelColumns {
+    enum class CatalogModelColumns {
         Key = 0,
         Source,
         Target,
         Notes,
         Context,
+        Files,
         TranslationStatus,
+        SourceLength,
+        TargetLength,
         IsEmpty,
         State,
         IsModified,
         IsPlural,
         ColumnCount,
-        DisplayedColumnCount = TranslationStatus + 1
+    };
+    static const int DisplayedColumnCount = static_cast<int>(CatalogModelColumns::TargetLength) + 1;
+
+    // Possible values in column "Translation Status".
+    enum class TranslationStatus {
+        // translated
+        Ready,
+        // fuzzy
+        NeedsReview,
+        // empty
+        Untranslated,
     };
 
     enum Roles {
-        StringFilterRole = Qt::UserRole + 1
+        StringFilterRole = Qt::UserRole + 1,
+        SortRole = Qt::UserRole + 2,
     };
 
     explicit CatalogTreeModel(QObject* parent, Catalog* catalog);
-    ~CatalogTreeModel() override {}
+    ~CatalogTreeModel() override = default;
 
     QModelIndex index(int row, int column, const QModelIndex& parent = QModelIndex())const override;
     QModelIndex parent(const QModelIndex&) const override;
@@ -85,7 +100,10 @@ public:
 public slots:
     void reflectChanges(DocPosition);
     void fileLoaded();
+
 private:
+    TranslationStatus getTranslationStatus(int row) const;
+
     Catalog* m_catalog;
     bool m_ignoreAccel;
 
@@ -145,10 +163,10 @@ public:
 
     bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override;
 
-    void setFilerOptions(int o);
-    int filerOptions()const
+    void setFilterOptions(int o);
+    int filterOptions()const
     {
-        return m_filerOptions;
+        return m_filterOptions;
     }
 
     void setSourceModel(QAbstractItemModel* sourceModel) override;
@@ -170,7 +188,7 @@ public slots:
     }
 
 private:
-    int m_filerOptions;
+    int m_filterOptions;
     bool m_individualRejectFilterEnable;
     QVector<bool> m_individualRejectFilter; //used from kross scripts
     MergeCatalog* m_mergeCatalog;

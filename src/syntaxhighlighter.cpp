@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -48,7 +49,6 @@ SyntaxHighlighter::SyntaxHighlighter(QTextEdit *parent)
     , m_approved(true)
 //     , fromDocbook(docbook)
 {
-
     highlightingRules.reserve(NUM_OF_RULES);
     HighlightingRule rule;
     //rule.format.setFontItalic(true);
@@ -84,10 +84,6 @@ SyntaxHighlighter::SyntaxHighlighter(QTextEdit *parent)
     rule.pattern = QRegExp(QStringLiteral("(\\\\[abfnrtv'\?\\\\])|(\\\\\\d+)|(\\\\x[\\dabcdef]+)"));
     highlightingRules.append(rule);
 
-
-
-
-
     //spaces
     settingsChanged();
     connect(SettingsController::instance(), &SettingsController::generalSettingsChanged, this, &SyntaxHighlighter::settingsChanged);
@@ -96,7 +92,7 @@ SyntaxHighlighter::SyntaxHighlighter(QTextEdit *parent)
 
 void SyntaxHighlighter::settingsChanged()
 {
-    QRegExp re(" +$|^ +|.?" % QChar(0x0000AD) % ".?"); //soft hyphen
+    QRegExp re(" +$|^ +|.?" + QChar(0x0000AD) + ".?"); //soft hyphen
     if (Settings::highlightSpaces() && highlightingRules.last().pattern != re) {
         HighlightingRule rule;
         rule.format.clearForeground();

@@ -4,6 +4,7 @@
     Copyright (C) 2007 Montel Laurent <montel@kde.org>
     Copyright (C) 2009 Jos van den Oever <jos@vandenoever.info>
     Copyright (C) 2014 Nick Shaforostoff <shaforostoff@gmail.com>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -20,10 +21,11 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-
 #include "poextractor.h"
-#include <QFile>
+
 #include <fstream>
+
+#include <QFile>
 
 POExtractor::POExtractor()
     : state(WHITESPACE)
@@ -122,11 +124,11 @@ void POExtractor::handleLine(const char* data, uint32_t length)
 #endif
 }
 
-void POExtractor::extract(const QString& filePath, FileMetaData& m)
+FileMetaData POExtractor::extract(const QString& filePath)
 {
     std::ifstream fstream(QFile::encodeName(filePath));
     if (!fstream.is_open()) {
-        return;
+        return {};
     }
 
     state = WHITESPACE;
@@ -138,6 +140,7 @@ void POExtractor::extract(const QString& filePath, FileMetaData& m)
 
     std::string line;
     int lines = 0;
+    FileMetaData m;
     while (std::getline(fstream, line)) {
         //TODO add a parsed text of translation units
         //QByteArray arr = QByteArray::fromRawData(line.c_str(), line.size());
@@ -186,4 +189,6 @@ void POExtractor::extract(const QString& filePath, FileMetaData& m)
     //TODO
     m.translated_approver = m.translated_reviewer = m.translated;
     m.fuzzy_approver = m.fuzzy_reviewer = m.fuzzy;
+
+    return m;
 }

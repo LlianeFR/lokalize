@@ -6,6 +6,7 @@
                 2001-2005   by Stanislav Visnovsky <visnovsky@kde.org>
                 2006        by Nicolas Goutte <goutte@kde.org>
                 2007-2014   by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -139,6 +140,7 @@ void Catalog::clear()
     QUndoStack::clear();
     d._errorIndex.clear();
     d._nonApprovedIndex.clear();
+    d._nonApprovedNonEmptyIndex.clear();
     d._emptyIndex.clear();
     delete m_storage; m_storage = 0;
     d._filePath.clear();
@@ -198,11 +200,11 @@ QString Catalog::msgid(const DocPosition& pos) const
     return m_storage->source(alterForSinglePlural(this, pos));
 }
 
-QString Catalog::msgidWithPlurals(const DocPosition& pos) const
+QString Catalog::msgidWithPlurals(const DocPosition& pos, bool truncateFirstLine) const
 {
     if (Q_UNLIKELY(!m_storage))
         return QString();
-    return m_storage->sourceWithPlurals(pos);
+    return m_storage->sourceWithPlurals(pos, truncateFirstLine);
 }
 
 QString Catalog::msgstr(const DocPosition& pos) const
@@ -213,12 +215,12 @@ QString Catalog::msgstr(const DocPosition& pos) const
     return m_storage->target(pos);
 }
 
-QString Catalog::msgstrWithPlurals(const DocPosition& pos) const
+QString Catalog::msgstrWithPlurals(const DocPosition& pos, bool truncateFirstLine) const
 {
     if (Q_UNLIKELY(!m_storage))
         return QString();
 
-    return m_storage->targetWithPlurals(pos);
+    return m_storage->targetWithPlurals(pos, truncateFirstLine);
 }
 
 
@@ -356,7 +358,6 @@ QString Catalog::setPhase(const DocPosition& pos, const QString& phase)
 
 void Catalog::setActivePhase(const QString& phase, ProjectLocal::PersonRole role)
 {
-    //qCDebug(LOKALIZE_LOG)<<"setting active phase"<<phase<<role;
     d._phase = phase;
     d._phaseRole = role;
     updateApprovedEmptyIndexCache();
@@ -370,16 +371,20 @@ void Catalog::updateApprovedEmptyIndexCache()
 
     //index cache TODO profile?
     d._nonApprovedIndex.clear();
+    d._nonApprovedNonEmptyIndex.clear();
     d._emptyIndex.clear();
 
     DocPosition pos(0);
     const int limit = m_storage->size();
     while (pos.entry < limit) {
-        if (!isApproved(pos))
-            d._nonApprovedIndex << pos.entry;
         if (m_storage->isEmpty(pos))
             d._emptyIndex << pos.entry;
-
+        if (!isApproved(pos)) {
+            d._nonApprovedIndex << pos.entry;
+            if (!m_storage->isEmpty(pos)) {
+                d._nonApprovedNonEmptyIndex << pos.entry;
+            }
+        }
         ++(pos.entry);
     }
 
@@ -556,7 +561,7 @@ int Catalog::loadFromUrl(const QString& filePath, const QString& saidUrl, int* f
     bool readOnly = !info.isWritable();
 
 
-    QTime a; a.start();
+    QElapsedTimer a; a.start();
 
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly))
@@ -774,7 +779,7 @@ void Catalog::flushUpdateDBBuffer()
     if (Project::instance()->targetLangCode() == targetLangCode()) {
         dbName = Project::instance()->projectID();
     } else {
-        dbName = sourceLangCode() % '-' % targetLangCode();
+        dbName = sourceLangCode() + '-' + targetLangCode();
         qCInfo(LOKALIZE_LOG) << "updating" << dbName << "because target language of project db does not match" << Project::instance()->targetLangCode() << targetLangCode();
         if (!TM::DBFilesModel::instance()->m_configurations.contains(dbName)) {
             TM::OpenDBJob* openDBJob = new TM::OpenDBJob(dbName, TM::Local, true);
@@ -909,10 +914,14 @@ TargetState Catalog::setState(const DocPosition& pos, TargetState state)
         m_storage->setApproved(pos, approved);
     }
 
-    if (!approved)
+    if (!approved) {
         insertInList(d._nonApprovedIndex, pos.entry);
-    else
+        if (!m_storage->isEmpty(pos))
+            insertInList(d._nonApprovedNonEmptyIndex, pos.entry);
+    } else {
         d._nonApprovedIndex.removeAll(pos.entry);
+        d._nonApprovedNonEmptyIndex.removeAll(pos.entry);
+    }
 
     emit signalNumberOfFuzziesChanged();
     emit signalEntryModified(pos);

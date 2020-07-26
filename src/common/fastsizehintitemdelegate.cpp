@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2012 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -127,7 +128,7 @@ QString convertToHtml(QString str, bool italics)
     str = Qt::convertFromPlainText(str); //FIXME use another routine (this has bugs)
 
     if (italics)
-        str = "<p><i>" % QString::fromRawData(str.unicode() + 3, str.length() - 3 - 4) % "</i></p>";
+        str = "<p><i>" + QString::fromRawData(str.unicode() + 3, str.length() - 3 - 4) + "</i></p>";
 
     return str;
 }

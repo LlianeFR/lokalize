@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -51,9 +52,9 @@ struct MatchItem {
         , translationIsDifferent(d)
     {}
 
-    bool operator<(const MatchItem& other) const
+    bool operator>(const MatchItem& other) const
     {
-        return score < other.score;
+        return score > other.score;
     }
 
 };
@@ -74,7 +75,7 @@ class MergeCatalog: public Catalog
     Q_OBJECT
 public:
     explicit MergeCatalog(QObject* parent, Catalog* baseCatalog, bool saveChanges = true);
-    ~MergeCatalog() override {}
+    ~MergeCatalog() override = default;
 
     int loadFromUrl(const QString& filePath);
 

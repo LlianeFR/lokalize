@@ -23,6 +23,20 @@
 -->
         <default code="true">KEMailSettings().getSetting(KEMailSettings::RealName)</default>
     </entry>
+    <entry key="overrideLangTeam" type="Bool">
+<!--
+        <label>Override Language Team</label>
+            <whatsthis>Use user-provided language team name instead of generating it</whatsthis>
+-->
+        <default>false</default>
+    </entry>
+    <entry key="userLangTeam" type="String">
+<!--
+        <label>Language Team</label>
+            <whatsthis>Translator team's name</whatsthis>
+-->
+        <default></default>
+    </entry>
     <entry key="authorEmail" type="String">
 <!--
             <whatsthis>Translator's email</whatsthis>
@@ -91,6 +105,12 @@
     <entry name="RestoreRecentFilesOnStartup"  type="Bool">
         <default>true</default>
     </entry>
+    <entry name="CustomEditorEnabled"  type="Bool">
+        <default>false</default>
+    </entry>
+    <entry name="CustomEditorCommand"  type="String">
+        <default>kate %1:%2</default>
+    </entry>
   </group>
   <group name="Editor">
     <entry name="AutoApprove"  type="Bool">
@@ -100,6 +120,9 @@
         <default>true</default>
     </entry>
     <entry name="VisualizeSeparators"  type="Bool">
+        <default>false</default>
+    </entry>
+    <entry name="ConvertXMLChars"  type="Bool">
         <default>false</default>
     </entry>
     <entry name="MouseWheelGo"  type="Bool">
@@ -141,6 +164,17 @@
     </entry>
     <entry name="PologyCommandFile" type="String">
         <default>posieve -s lokalize check-rules %f</default>
+    </entry>
+  </group>
+  <group name="LanguageTool">
+    <entry name="LanguageToolCustom" type="Bool">
+        <default>false</default>
+    </entry>
+    <entry name="LanguageToolInstancePath" type="String">
+        <default></default>
+    </entry>
+    <entry name="LanguageToolDelay" type="Int">
+        <default>0</default>
     </entry>
   </group>
 </kcfg>

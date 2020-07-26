@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -45,7 +46,7 @@ class PhasesWindow: public QDialog
     Q_OBJECT
 public:
     explicit PhasesWindow(Catalog* catalog, QWidget *parent);
-    ~PhasesWindow() {}
+    ~PhasesWindow() override = default;
 
 private slots:
     void displayPhaseNotes(const QModelIndex& current);
@@ -76,7 +77,7 @@ class MyTreeView: public QTreeView
     Q_OBJECT
 public:
     explicit MyTreeView(QWidget* parent): QTreeView(parent) {}
-    ~MyTreeView() override {}
+    ~MyTreeView() override = default;
 
 signals:
     void currentIndexChanged(const QModelIndex& current);

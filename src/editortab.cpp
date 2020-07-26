@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -146,6 +147,8 @@ EditorTab::~EditorTab()
     }
 
     ids.removeAll(m_dbusId);
+
+    delete m_catalog;
 }
 
 
@@ -274,6 +277,8 @@ void EditorTab::setupActions()
     connect(m_notesView, &MsgCtxtView::srcFileOpenRequested, this, &EditorTab::dispatchSrcFileOpenRequest);
     connect(m_view, &EditorView::signalChanged, m_notesView, &MsgCtxtView::removeErrorNotes);
     connect(m_notesView, &MsgCtxtView::escaped, this, &EditorTab::setProperFocus);
+
+    connect((const TranslationUnitTextEdit*)m_view->viewPort(), &TranslationUnitTextEdit::languageToolChanged, m_notesView, &MsgCtxtView::languageTool);
 
     action = edit->addAction(QStringLiteral("edit_addnote"), m_notesView, SLOT(addNoteUI()));
     //action->setShortcut(Qt::CTRL+glist[i]);
@@ -538,6 +543,10 @@ void EditorTab::setupActions()
     ac->setDefaultShortcut(action, QKeySequence(Qt::CTRL + Qt::Key_T));
     action->setText(i18nc("@action:inmenu", "Insert Tag"));
 
+    action = edit->addAction(QStringLiteral("edit_languagetool"), m_view->viewPort(), SLOT(launchLanguageTool()));
+    ac->setDefaultShortcut(action, QKeySequence(Qt::CTRL + Qt::Key_J));
+    action->setText(i18nc("@action:inmenu", "Check this unit using LanguageTool"));
+
     action = edit->addAction(QStringLiteral("edit_tagimmediate"), m_view->viewPort(), SLOT(tagImmediate()));
     ac->setDefaultShortcut(action, QKeySequence(Qt::CTRL + Qt::Key_M));
     action->setText(i18nc("@action:inmenu", "Insert Next Tag"));
@@ -799,7 +808,7 @@ void EditorTab::updateCaptionPath()
         _captionPath = _captionPath.mid(2);
 }
 
-bool EditorTab::fileOpen(QString filePath, QString suggestedDirPath, bool silent)
+bool EditorTab::fileOpen(QString filePath, QString suggestedDirPath, QMap<QString, QMdiSubWindow*> openedFiles, bool silent)
 {
     if (!m_catalog->isClean()) {
         switch (KMessageBox::warningYesNoCancel(SettingsController::instance()->mainWindowPtr(),
@@ -836,6 +845,11 @@ bool EditorTab::fileOpen(QString filePath, QString suggestedDirPath, bool silent
     }
     if (filePath.isEmpty())
         return false;
+    QMap<QString, QMdiSubWindow*>::const_iterator it = openedFiles.constFind(filePath);
+    if (it != openedFiles.constEnd()) {
+        qCWarning(LOKALIZE_LOG) << "already opened:" << filePath;
+        return false;
+    }
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
 
@@ -1413,7 +1427,7 @@ void EditorTab::displayWordCount()
     //TODO in trans and fuzzy separately
     int sourceCount = 0;
     int targetCount = 0;
-    QRegExp rxClean(Project::instance()->markup() % '|' % Project::instance()->accel()); //cleaning regexp; NOTE isEmpty()?
+    QRegExp rxClean(Project::instance()->markup() + '|' + Project::instance()->accel()); //cleaning regexp; NOTE isEmpty()?
     QRegExp rxSplit(QStringLiteral("\\W|\\d"));//splitting regexp
     DocPosition pos(0);
     do {
@@ -1478,6 +1492,13 @@ static void openLxrSearch(const QString& srcFileRelPath)
                                    + QString::fromLatin1(QUrl::toPercentEncoding(srcFileRelPath))));
 }
 
+static void openLocalSource(const QString& file, int line)
+{
+    if (Settings::self()->customEditorEnabled())
+        QProcess::startDetached(QString(Settings::self()->customEditorCommand()).arg(file).arg(line));
+    else
+        QDesktopServices::openUrl(QUrl::fromLocalFile(file));
+}
 
 void EditorTab::dispatchSrcFileOpenRequest(const QString& srcFileRelPath, int line)
 {
@@ -1493,7 +1514,7 @@ void EditorTab::dispatchSrcFileOpenRequest(const QString& srcFileRelPath, int li
     relativePath.cdUp();
     QString srcAbsolutePath(relativePath.absoluteFilePath(srcFileRelPath));
     if (QFile::exists(srcAbsolutePath)) {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(srcAbsolutePath));
+        openLocalSource(srcAbsolutePath, line);
         return;
     }
 
@@ -1518,8 +1539,13 @@ void EditorTab::dispatchSrcFileOpenRequest(const QString& srcFileRelPath, int li
             Project::instance()->local()->setSourceDir(dir);
     }
     if (dir.length()) {
-        auto doOpen = [srcFileRelPath]() {
+        auto doOpen = [srcFileRelPath, dir, line]() {
             auto sourceFilePaths = Project::instance()->sourceFilePaths();
+            QString absFilePath = QString("%1/%2").arg(dir, srcFileRelPath);
+            if (QFileInfo::exists(absFilePath)) {
+                openLocalSource(absFilePath, line);
+                return;
+            }
             bool found = false;
             QByteArray fn = srcFileRelPath.midRef(srcFileRelPath.lastIndexOf('/') + 1).toUtf8();
             auto it = sourceFilePaths.constFind(fn);
@@ -1530,7 +1556,7 @@ void EditorTab::dispatchSrcFileOpenRequest(const QString& srcFileRelPath, int li
                     continue;
                 }
                 found = true;
-                QDesktopServices::openUrl(QUrl::fromLocalFile(absFilePath));
+                openLocalSource(absFilePath, line);
                 it++;
             }
             if (!found) {
@@ -1606,7 +1632,7 @@ void EditorTab::mergeIntoOpenDocument()
     QString targetLangCode = m_catalog->targetLangCode();
 
     QStringList args(m_catalog->url());
-    args.append(xliffFolder % '/' % originalOdfFileInfo.baseName() % '-' % targetLangCode % '.' % originalOdfFileInfo.suffix());
+    args.append(xliffFolder + '/' + originalOdfFileInfo.baseName() + '-' + targetLangCode + '.' + originalOdfFileInfo.suffix());
     args.append(QStringLiteral("-t"));
     args.append(originalOdfFilePath);
     qCDebug(LOKALIZE_LOG) << args;

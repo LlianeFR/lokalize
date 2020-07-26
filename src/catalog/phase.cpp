@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2009 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -69,7 +70,7 @@ bool initPhaseForCatalog(Catalog* catalog, Phase& phase, int options)
 
     QSet<QString> names;
     QList<Phase> phases = catalog->allPhases();
-    qSort(phases.begin(), phases.end(), qGreater<Phase>());
+    std::sort(phases.begin(), phases.end(), std::greater<Phase>());
     foreach (const Phase& p, phases) {
         if (!(options & ForceAdd) && p.contact == phase.contact && p.process == phase.process) {
             phase = p;

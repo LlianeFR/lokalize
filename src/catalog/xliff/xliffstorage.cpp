@@ -1,5 +1,6 @@
 /*
 Copyright 2008-2009 Nick Shaforostoff <shaforostoff@kde.ru>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License as
@@ -32,7 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <QStringBuilder>
 #include <QMap>
 #include <QDomDocument>
-#include <QTime>
+#include <QElapsedTimer>
 #include <QPair>
 #include <QList>
 #include <QXmlSimpleReader>
@@ -52,10 +53,6 @@ XliffStorage::XliffStorage()
 {
 }
 
-XliffStorage::~XliffStorage()
-{
-}
-
 int XliffStorage::capabilities() const
 {
     return KeepsNoteAuthors | MultipleNotes | Phases | ExtendedStates | Tags;
@@ -65,7 +62,7 @@ int XliffStorage::capabilities() const
 
 int XliffStorage::load(QIODevice* device)
 {
-    QTime chrono; chrono.start();
+    QElapsedTimer chrono; chrono.start();
 
 
     QXmlSimpleReader reader;
@@ -509,13 +506,25 @@ QString XliffStorage::target(const DocPosition& pos) const
 {
     return genericContent(targetForPos(pos.entry), pos.entry < size());
 }
-QString XliffStorage::sourceWithPlurals(const DocPosition& pos) const
+QString XliffStorage::sourceWithPlurals(const DocPosition& pos, bool truncateFirstLine) const
 {
-    return source(pos);
+    QString str = source(pos);
+    if (truncateFirstLine) {
+        int truncatePos = str.indexOf("\n");
+        if (truncatePos != -1)
+            str.truncate(truncatePos);
+    }
+    return str;
 }
-QString XliffStorage::targetWithPlurals(const DocPosition& pos) const
+QString XliffStorage::targetWithPlurals(const DocPosition& pos, bool truncateFirstLine) const
 {
-    return target(pos);
+    QString str = target(pos);
+    if (truncateFirstLine) {
+        int truncatePos = str.indexOf("\n");
+        if (truncatePos != -1)
+            str.truncate(truncatePos);
+    }
+    return str;
 }
 
 
@@ -734,7 +743,7 @@ QStringList XliffStorage::sourceFiles(const DocPosition& pos) const
                 else if (contextType == QLatin1String("linenumber"))
                     linenumber = context.text();
                 if (!(sourcefile.isEmpty() && linenumber.isEmpty()))
-                    result.append(sourcefile % ':' % linenumber);
+                    result.append(sourcefile + ':' + linenumber);
 
                 context = context.nextSiblingElement(QStringLiteral("context"));
             }
@@ -772,7 +781,7 @@ QVector<Note> XliffStorage::notes(const DocPosition& pos) const
         result.append(note);
         elem = elem.nextSiblingElement(NOTE);
     }
-    qSort(result);
+    std::sort(result.begin(), result.end());
     return result.toVector();
 }
 
@@ -829,7 +838,7 @@ QStringList XliffStorage::noteAuthors() const
         if (!from.isEmpty())
             result.insert(from);
     }
-    return result.toList();
+    return result.values();
 }
 
 QVector<Note> phaseNotes(QDomDocument m_doc, const QString& phasename, bool remove = false)

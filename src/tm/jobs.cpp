@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -41,6 +42,7 @@
 #include <QMap>
 #include <QStandardPaths>
 #include <QFile>
+#include <QElapsedTimer>
 #include <QDir>
 
 #include <iostream>
@@ -70,6 +72,10 @@ static bool stop = false;
 void TM::cancelAllJobs()
 {
     stop = true;
+}
+static const QString getConnectionName(const QString dbName)
+{
+    return dbName + QString::number((long)QThread::currentThreadId());
 }
 
 static qlonglong newTMSourceEntryCount = 0;
@@ -118,11 +124,11 @@ static qlonglong getFileId(const QString& path,
     QString escapedPath = path;
     escapedPath.replace(QLatin1Char('\''), QLatin1String("''"));
 
-    QString pathExpr = QStringLiteral("path='") % escapedPath % '\'';
+    QString pathExpr = QStringLiteral("path='") + escapedPath + '\'';
     if (path.isEmpty())
         pathExpr = QStringLiteral("path ISNULL");
     if (Q_UNLIKELY(!query1.exec(U("SELECT id FROM files WHERE "
-                                  "path='") % escapedPath % '\'')))
+                                  "path='") + escapedPath + '\'')))
         qCWarning(LOKALIZE_LOG) << "select db error: " << query1.lastError().text();
 
     if (Q_LIKELY(query1.next())) {
@@ -171,7 +177,7 @@ static void addToIndex(qlonglong sourceId, QString sourceString,
     while (--j >= 0) {
         // insert word (if we do not have it)
         if (Q_UNLIKELY(!query1.exec(U("SELECT word, ids_short, ids_long FROM words WHERE "
-                                      "word='") % words.at(j) % '\'')))
+                                      "word='") + words.at(j) + '\'')))
             qCWarning(LOKALIZE_LOG) << "select error 3: " << query1.lastError().text();
 
         //we _have_ it
@@ -190,13 +196,13 @@ static void addToIndex(qlonglong sourceId, QString sourceString,
             }
             query1.clear();
 
-            if (arr.contains(' ' % sourceIdStr % ' ')
+            if (arr.contains(' ' + sourceIdStr + ' ')
                 || arr.startsWith(sourceIdStr + ' ')
                 || arr.endsWith(' ' + sourceIdStr)
                 || arr == sourceIdStr)
                 return;//this string is already indexed
 
-            query1.prepare(QStringLiteral("UPDATE words SET ") % field % QStringLiteral("=? WHERE word='") % words.at(j) % '\'');
+            query1.prepare(QStringLiteral("UPDATE words SET ") + field + QStringLiteral("=? WHERE word='") + words.at(j) + '\'');
 
             if (!arr.isEmpty())
                 arr += ' ';
@@ -244,10 +250,10 @@ static void removeFromIndex(qlonglong mainId, qlonglong sourceId, QString source
 //BEGIN check
     //TM_NOTAPPROVED=4
     if (Q_UNLIKELY(!query1.exec(U("SELECT count(*) FROM main, target_strings WHERE "
-                                  "main.source=") % QString::number(sourceId) % U(" AND "
+                                  "main.source=") + QString::number(sourceId) + U(" AND "
                                           "main.target=target_strings.id AND "
                                           "target_strings.target NOTNULL AND "
-                                          "main.id!=") % QString::number(mainId) % U(" AND "
+                                          "main.id!=") + QString::number(mainId) + U(" AND "
                                                   "(main.bits&4)!=4")))) {
         qCWarning(LOKALIZE_LOG) << "select error 500: " << query1.lastError().text();
         return;
@@ -264,7 +270,7 @@ static void removeFromIndex(qlonglong mainId, qlonglong sourceId, QString source
     while (--j >= 0) {
         // remove from record for the word (if we do not have it)
         if (Q_UNLIKELY(!query1.exec(U("SELECT word, ids_short, ids_long FROM words WHERE "
-                                      "word='") % words.at(j) % '\''))) {
+                                      "word='") + words.at(j) + '\''))) {
             qCWarning(LOKALIZE_LOG) << "select error 3: " << query1.lastError().text();
             return;
         }
@@ -297,8 +303,8 @@ static void removeFromIndex(qlonglong mainId, qlonglong sourceId, QString source
 
 
         query1.prepare(U("UPDATE words "
-                         "SET ") % field % U("=? "
-                                             "WHERE word='") % words.at(j) % '\'');
+                         "SET ") + field + U("=? "
+                                             "WHERE word='") + words.at(j) + '\'');
 
         query1.bindValue(0, arr);
 
@@ -418,7 +424,7 @@ static bool doInsertEntry(CatalogString source,
                           qlonglong& mainId
                          )
 {
-    QTime a; a.start();
+//     QTime a; a.start();
 
     mainId = -1;
 
@@ -501,7 +507,7 @@ static bool doInsertEntry(CatalogString source,
 
     if (Q_UNLIKELY(!query1.exec(QString(U("SELECT id, target, bits FROM main WHERE "
                                           "source=%1 AND file=%2 AND ctxt%3")).arg(sourceId).arg(fileId).arg
-                                (escapedCtxt.isEmpty() ? QStringLiteral(" ISNULL") : QString("='" % escapedCtxt % '\''))))) {
+                                (escapedCtxt.isEmpty() ? QStringLiteral(" ISNULL") : QString("='" + escapedCtxt + '\''))))) {
         qCWarning(LOKALIZE_LOG) << "doInsertEntry: select db main error: " << query1.lastError().text();
         return false;
     }
@@ -583,7 +589,7 @@ static bool doInsertEntry(CatalogString source,
 
             query1.prepare(U("UPDATE target_strings "
                              "SET target=?, target_accel=?, target_markup=? "
-                             "WHERE id=") % QString::number(targetId));
+                             "WHERE id=") + QString::number(targetId));
 
             query1.bindValue(0, target.string.isEmpty() ? QVariant() : target.string);
             query1.bindValue(1, targetAccelPos != -1 ? QVariant(targetAccelPos) : QVariant());
@@ -592,7 +598,7 @@ static bool doInsertEntry(CatalogString source,
             if (!ok)
                 qCWarning(LOKALIZE_LOG) << "doInsertEntry: target update failed" << query1.lastError().text();
             else {
-                ok = query1.exec(QStringLiteral("UPDATE main SET change_date=CURRENT_DATE WHERE target=") % QString::number(targetId));
+                ok = query1.exec(QStringLiteral("UPDATE main SET change_date=CURRENT_DATE WHERE target=") + QString::number(targetId));
                 if (!ok)
                     qCWarning(LOKALIZE_LOG) << "doInsertEntry: main update failed" << query1.lastError().text();
             }
@@ -982,57 +988,53 @@ OpenDBJob::OpenDBJob(const QString& name, DbType type, bool reconnect, const Con
     , m_connParams(connParams)
 {
     setAutoDelete(false);
-    //qCDebug(LOKALIZE_LOG)<<"OpenDBJob ctor"<<m_dbName;
-}
-
-OpenDBJob::~OpenDBJob()
-{
-    //qCDebug(LOKALIZE_LOG)<<"OpenDBJob dtor"<<m_dbName;
+    //qCWarning(LOKALIZE_LOG)<<"OpenDBJob ctor"<<m_dbName;
 }
 
 void OpenDBJob::run()
 {
-    QTime a; a.start();
-    if (!QSqlDatabase::contains(m_dbName) || m_reconnect) {
+    QElapsedTimer a; a.start();
+    const QString connectionName = getConnectionName(m_dbName);
+    if (!QSqlDatabase::contains(connectionName) || m_reconnect) {
         QThread::currentThread()->setPriority(QThread::IdlePriority);
 
         if (m_type == TM::Local) {
-            QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_dbName);
+            QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
             QString dbFolder = QStandardPaths::writableLocation(QStandardPaths::DataLocation);
             QFileInfo fileInfo(dbFolder);
             if (!fileInfo.exists(dbFolder)) fileInfo.absoluteDir().mkpath(fileInfo.fileName());
-            db.setDatabaseName(dbFolder % QLatin1Char('/') % m_dbName % TM_DATABASE_EXTENSION);
+            db.setDatabaseName(dbFolder + QLatin1Char('/') + m_dbName + TM_DATABASE_EXTENSION);
             m_connectionSuccessful = db.open();
             if (Q_UNLIKELY(!m_connectionSuccessful)) {
-                qCDebug(LOKALIZE_LOG) << "failed to open db" << db.databaseName() << db.lastError().text();
-                QSqlDatabase::removeDatabase(m_dbName);
+                qCWarning(LOKALIZE_LOG) << "failed to open db" << db.databaseName() << db.lastError().text();
+                QSqlDatabase::removeDatabase(connectionName);
                 emit done(this);
                 return;
             }
             if (!initSqliteDb(db)) { //need to recreate db ;(
                 QString filename = db.databaseName();
                 db.close();
-                QSqlDatabase::removeDatabase(m_dbName);
+                QSqlDatabase::removeDatabase(connectionName);
                 qCWarning(LOKALIZE_LOG) << "We need to recreate the database " << filename;
                 QFile::remove(filename);
 
-                db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_dbName);
+                db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
                 db.setDatabaseName(filename);
                 m_connectionSuccessful = db.open() && initSqliteDb(db);
                 if (!m_connectionSuccessful) {
-                    QSqlDatabase::removeDatabase(m_dbName);
+                    QSqlDatabase::removeDatabase(connectionName);
                     emit done(this);
                     return;
                 }
             }
         } else {
-            if (QSqlDatabase::contains(m_dbName)) { //reconnect is true
-                QSqlDatabase::database(m_dbName).close();
-                QSqlDatabase::removeDatabase(m_dbName);
+            if (QSqlDatabase::contains(connectionName)) { //reconnect is true
+                QSqlDatabase::database(connectionName).close();
+                QSqlDatabase::removeDatabase(connectionName);
             }
 
             if (!m_connParams.isFilled()) {
-                QFile rdb(QStandardPaths::writableLocation(QStandardPaths::DataLocation) + QLatin1Char('/') + m_dbName % REMOTETM_DATABASE_EXTENSION);
+                QFile rdb(QStandardPaths::writableLocation(QStandardPaths::DataLocation) + QLatin1Char('/') + m_dbName + REMOTETM_DATABASE_EXTENSION);
                 if (!rdb.open(QIODevice::ReadOnly | QIODevice::Text)) {
                     emit done(this);
                     return;
@@ -1047,14 +1049,14 @@ void OpenDBJob::run()
                 m_connParams.passwd = rdbParams.readLine();
             }
 
-            QSqlDatabase db = QSqlDatabase::addDatabase(m_connParams.driver, m_dbName);
+            QSqlDatabase db = QSqlDatabase::addDatabase(m_connParams.driver, connectionName);
             db.setHostName(m_connParams.host);
             db.setDatabaseName(m_connParams.db);
             db.setUserName(m_connParams.user);
             db.setPassword(m_connParams.passwd);
             m_connectionSuccessful = db.open();
             if (Q_UNLIKELY(!m_connectionSuccessful)) {
-                QSqlDatabase::removeDatabase(m_dbName);
+                QSqlDatabase::removeDatabase(connectionName);
                 emit done(this);
                 return;
             }
@@ -1063,13 +1065,13 @@ void OpenDBJob::run()
         }
 
     }
-    QSqlDatabase db = QSqlDatabase::database(m_dbName);
+    QSqlDatabase db = QSqlDatabase::database(connectionName);
     //if (!m_markup.isEmpty()||!m_accel.isEmpty())
     if (m_setParams)
         setConfig(db, m_tmConfig);
     else
         m_tmConfig = getConfig(db);
-    qCDebug(LOKALIZE_LOG) << "db" << m_dbName << "opened" << a.elapsed() << m_tmConfig.targetLangCode;
+    qCWarning(LOKALIZE_LOG) << "db" << connectionName << "opened" << a.elapsed() << m_tmConfig.targetLangCode;
 
     getStats(db, m_stat.pairsCount, m_stat.uniqueSourcesCount, m_stat.uniqueTranslationsCount);
 
@@ -1095,8 +1097,10 @@ CloseDBJob::~CloseDBJob()
 
 void CloseDBJob::run()
 {
-    if (m_dbName.length())
-        QSqlDatabase::removeDatabase(m_dbName);
+    const QString connectionName = getConnectionName(m_dbName);
+    if (connectionName.length())
+        QSqlDatabase::removeDatabase(connectionName);
+    qCDebug(LOKALIZE_LOG) << "closedb " << connectionName;
     emit done(this);
 }
 
@@ -1212,7 +1216,7 @@ bool SelectJob::doSelect(QSqlDatabase& db,
     QString tmp = c.markup;
     if (!c.markup.isEmpty())
         tmp += '|';
-    QRegExp rxSplit(QLatin1Char('(') % tmp % QStringLiteral("\\W+|\\d+)+"));
+    QRegExp rxSplit(QLatin1Char('(') + tmp + QStringLiteral("\\W+|\\d+)+"));
 
     QString sourceClean(m_source.string);
     sourceClean.remove(c.accel);
@@ -1249,7 +1253,7 @@ bool SelectJob::doSelect(QSqlDatabase& db,
             //get records containing current word
             QSqlQuery queryFetch(U(
                                      "SELECT id, source, source_accel, source_markup FROM source_strings WHERE "
-                                     "source_strings.id IN (") % joined % ')', db);
+                                     "source_strings.id IN (") + joined + ')', db);
             TMEntry e;
             while (queryFetch.next()) {
                 e.id = queryFetch.value(0).toLongLong();
@@ -1357,10 +1361,10 @@ bool SelectJob::doSelect(QSqlDatabase& db,
                 QSqlQuery queryRest(U(
                                         "SELECT main.id, main.date, main.ctxt, main.bits, "
                                         "target_strings.target, target_strings.target_accel, target_strings.target_markup, "
-                                        "files.path, main.change_date ") % change_author_str % U(
+                                        "files.path, main.change_date ") + change_author_str + U(
                                         "FROM main JOIN target_strings ON (target_strings.id=main.target) JOIN files ON (files.id=main.file) ")
-                                    % authors_table_str % U("WHERE "
-                                            "main.source=") % QString::number(e.id) % U(" AND "
+                                    + authors_table_str + U("WHERE "
+                                            "main.source=") + QString::number(e.id) + U(" AND "
                                                     "(main.bits&4)!=4 AND "
                                                     "target_strings.target NOTNULL")
                                     , db); //ORDER BY tm_main.id ?
@@ -1442,19 +1446,20 @@ bool SelectJob::doSelect(QSqlDatabase& db,
 
 void SelectJob::run()
 {
+    const QString connectionName = getConnectionName(m_dbName);
     //qCDebug(LOKALIZE_LOG)<<"select started"<<m_dbName<<m_source.string;
     if (m_source.isEmpty() || stop) { //sanity check
         emit done(this);
         return;
     }
     //thread()->setPriority(QThread::IdlePriority);
-    QTime a; a.start();
+//     QTime a; a.start();
 
-    if (Q_UNLIKELY(!QSqlDatabase::contains(m_dbName))) {
+    if (Q_UNLIKELY(!QSqlDatabase::contains(connectionName))) {
         emit done(this);
         return;
     }
-    QSqlDatabase db = QSqlDatabase::database(m_dbName);
+    QSqlDatabase db = QSqlDatabase::database(connectionName);
     if (Q_UNLIKELY(!db.isValid() || !db.isOpen())) {
         emit done(this);
         return;
@@ -1471,7 +1476,7 @@ void SelectJob::run()
         emit done(this);
         return;
     }
-    qSort(words);//to speed up if some words occur multiple times
+    std::sort(words.begin(), words.end());//to speed up if some words occur multiple times
 
     bool isShort = words.size() < 20;
 
@@ -1479,7 +1484,7 @@ void SelectJob::run()
         doSelect(db, words, !isShort);
 
     //qCWarning(LOKALIZE_LOG) <<"SelectJob: done "<<a.elapsed()<<m_entries.size();
-    qSort(m_entries.begin(), m_entries.end(), qGreater<TMEntry>());
+    std::sort(m_entries.begin(), m_entries.end(), std::greater<TMEntry>());
     const int limit = qMin(Settings::suggCount(), m_entries.size());
     const int minScore = Settings::suggScore() * 100;
     int i = m_entries.size() - 1;
@@ -1522,20 +1527,17 @@ ScanJob::ScanJob(const QString& filePath, const QString& dbName)
     qCDebug(LOKALIZE_LOG) << m_dbName << m_filePath;
 }
 
-ScanJob::~ScanJob()
-{
-}
-
 void ScanJob::run()
 {
-    if (stop || !QSqlDatabase::contains(m_dbName)) {
+    const QString connectionName = getConnectionName(m_dbName);
+    if (stop || !QSqlDatabase::contains(connectionName)) {
         return;
     }
     qCDebug(LOKALIZE_LOG) << "scan job started for" << m_filePath << m_dbName << stop << m_dbName;
     //QThread::currentThread()->setPriority(QThread::IdlePriority);
-    QTime a; a.start();
+    QElapsedTimer a; a.start();
 
-    QSqlDatabase db = QSqlDatabase::database(m_dbName);
+    QSqlDatabase db = QSqlDatabase::database(connectionName);
     if (!db.isOpen())
         return;
     //initSqliteDb(db);
@@ -1572,7 +1574,7 @@ void ScanJob::run()
                     */
                     ok = ok && doInsertEntry(catalog.sourceWithTags(ppos),
                                              catalog.targetWithTags(ppos),
-                                             catalog.context(ppos).first() % TM_DELIMITER % QString::number(ppos.form),
+                                             catalog.context(ppos).first() + TM_DELIMITER + QString::number(ppos.form),
                                              catalog.isApproved(ppos),
                                              fileId, db, rxClean1, c.accel, priorId, priorId);
                 }
@@ -1615,8 +1617,9 @@ RemoveMissingFilesJob::~RemoveMissingFilesJob()
 
 void RemoveMissingFilesJob::run()
 {
+    const QString connectionName = getConnectionName(m_dbName);
 //    qCDebug(LOKALIZE_LOG)<<m_dbName;
-    QSqlDatabase db = QSqlDatabase::database(m_dbName);
+    QSqlDatabase db = QSqlDatabase::database(connectionName);
 
     doRemoveMissingFiles(db, m_dbName, this);
 
@@ -1642,8 +1645,9 @@ RemoveFileJob::~RemoveFileJob()
 
 void RemoveFileJob::run()
 {
+    const QString connectionName = getConnectionName(m_dbName);
 //    qCDebug(LOKALIZE_LOG)<<m_dbName;
-    QSqlDatabase db = QSqlDatabase::database(m_dbName);
+    QSqlDatabase db = QSqlDatabase::database(connectionName);
 
     if (!doRemoveFile(m_filePath, db)) {
         qCWarning(LOKALIZE_LOG) << "error while removing file" << m_dbName << m_filePath;
@@ -1705,8 +1709,9 @@ UpdateJob::UpdateJob(const QString& filePath,
 
 void UpdateJob::run()
 {
+    const QString connectionName = getConnectionName(m_dbName);
     qCDebug(LOKALIZE_LOG) << "UpdateJob run" << m_english.string << m_newTarget.string;
-    QSqlDatabase db = QSqlDatabase::database(m_dbName);
+    QSqlDatabase db = QSqlDatabase::database(connectionName);
 
     //cleaning regexps for word index update
     TMConfig c = getConfig(db);
@@ -1946,7 +1951,7 @@ ImportTmxJob::~ImportTmxJob()
 
 void ImportTmxJob::run()
 {
-    QTime a; a.start();
+    QElapsedTimer a; a.start();
 
     QFile file(m_filename);
     if (!file.open(QFile::ReadOnly | QFile::Text))
@@ -1984,7 +1989,8 @@ ExportTmxJob::~ExportTmxJob()
 
 void ExportTmxJob::run()
 {
-    QTime a; a.start();
+    const QString connectionName = getConnectionName(m_dbName);
+    QElapsedTimer a; a.start();
 
     QFile out(m_filename);
     if (!out.open(QFile::WriteOnly | QFile::Text))
@@ -2012,7 +2018,7 @@ void ExportTmxJob::run()
 
     QString dbLangCode = Project::instance()->langCode();
 
-    QSqlDatabase db = QSqlDatabase::database(m_dbName);
+    QSqlDatabase db = QSqlDatabase::database(connectionName);
     QSqlQuery query1(db);
 
     if (Q_UNLIKELY(!query1.exec(U(
@@ -2127,9 +2133,10 @@ ExecQueryJob::~ExecQueryJob()
 
 void ExecQueryJob::run()
 {
+    const QString connectionName = getConnectionName(m_dbName);
     m_dbOperationMutex->lock();
-    QSqlDatabase db = QSqlDatabase::database(m_dbName);
-    qCDebug(LOKALIZE_LOG) << "ExecQueryJob" << m_dbName << "db.isOpen() =" << db.isOpen();
+    QSqlDatabase db = QSqlDatabase::database(connectionName);
+    qCDebug(LOKALIZE_LOG) << "ExecQueryJob " << m_dbName << " " << connectionName <<" db.isOpen() =" << db.isOpen();
     //temporarily:
     if (!db.isOpen())
         qCWarning(LOKALIZE_LOG) << "ExecQueryJob db.open()=" << db.open();

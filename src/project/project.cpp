@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -42,9 +43,11 @@
 #include <QLocale>
 #include <QTimer>
 #include <QTime>
+#include <QElapsedTimer>
 #include <QDir>
 #include <QFileInfo>
 #include <QStringBuilder>
+#include <QFileSystemWatcher>
 
 #include "projectmodel.h"
 #include "webquerycontroller.h"
@@ -151,17 +154,19 @@ Project::~Project()
 
 void Project::load(const QString &newProjectPath, const QString& forcedTargetLangCode, const QString& forcedProjectId)
 {
-    QTime a; a.start();
+//     QElapsedTimer a; a.start();
 
     TM::threadPool()->clear();
     qCDebug(LOKALIZE_LOG) << "loading" << newProjectPath << "finishing tm jobs...";
 
-    if (!m_path.isEmpty()) {
+    //It is not necessary to close the TM Databases, as they are opened by default for statistics purposes
+    //This just causes issues when changing project because the previous TM is closed
+    /*if (!m_path.isEmpty()) {
         TM::CloseDBJob* closeDBJob = new TM::CloseDBJob(projectID());
         closeDBJob->setAutoDelete(true);
         TM::threadPool()->start(closeDBJob, CLOSEDB);
     }
-    TM::threadPool()->waitForDone(500);//more safety
+    TM::threadPool()->waitForDone(500);//more safety*/
 
     setSharedConfig(KSharedConfig::openConfig(newProjectPath, KConfig::NoGlobals));
     if (!QFileInfo::exists(newProjectPath)) Project::instance()->setDefaults();
@@ -193,6 +198,7 @@ void Project::load(const QString &newProjectPath, const QString& forcedTargetLan
     populateGlossary();//we cant postpone it because project load can be called from define new term function
 
     m_sourceFilePaths.clear();
+    m_sourceFilePathsReady = false;
 
     if (newProjectPath.isEmpty())
         return;
@@ -207,6 +213,11 @@ void Project::load(const QString &newProjectPath, const QString& forcedTargetLan
         QaModel::instance()->saveRules();
         QaModel::instance()->loadRules(qaPath());
     }
+
+    //Set a watch for config change/reload
+    m_projectFileWatcher = new QFileSystemWatcher(this);
+    m_projectFileWatcher->addPath(newProjectPath);
+    connect(m_projectFileWatcher, &QFileSystemWatcher::fileChanged, Project::instance(), &KCoreConfigSkeleton::load);
 
     //qCDebug(LOKALIZE_LOG)<<"until emitting signal"<<a.elapsed();
 
@@ -230,8 +241,19 @@ void Project::reinit()
 QString Project::absolutePath(const QString& possiblyRelPath) const
 {
     if (QFileInfo(possiblyRelPath).isRelative())
-        return QDir::cleanPath(m_projectDir % QLatin1Char('/') % possiblyRelPath);
+        return QDir::cleanPath(m_projectDir + QLatin1Char('/') + possiblyRelPath);
     return possiblyRelPath;
+}
+
+
+QString Project::relativePath(const QString& possiblyAbsPath) const
+{
+    if (QFileInfo(possiblyAbsPath).isAbsolute()) {
+        if (projectDir().endsWith('/'))
+            return QString(possiblyAbsPath).remove(projectDir());
+        return QString(possiblyAbsPath).remove(projectDir() + QLatin1Char('/'));
+    }
+    return possiblyAbsPath;
 }
 
 void Project::populateDirModel()
@@ -402,6 +424,7 @@ SourceFilesSearchJob::SourceFilesSearchJob(const QString& folderName, QObject* p
     : KJob(parent)
     , m_folderName(folderName)
 {
+    qCWarning(LOKALIZE_LOG) << "Starting SourceFilesSearchJob on " << folderName;
     setCapabilities(KJob::Killable);
 }
 
@@ -422,6 +445,7 @@ protected:
         QMultiMap<QByteArray, QByteArray> sourceFilePaths;
         fillFilePathsRecursive(startingDir, sourceFilePaths);
         Project::instance()->m_sourceFilePaths = sourceFilePaths;
+        Project::instance()->m_sourceFilePathsReady = true;
         QTimer::singleShot(0, kj, &SourceFilesSearchJob::finish);
     }
 public:
@@ -440,7 +464,7 @@ void SourceFilesSearchJob::start()
 
 const QMultiMap<QByteArray, QByteArray>& Project::sourceFilePaths()
 {
-    if (m_sourceFilePaths.isEmpty()) {
+    if (!m_sourceFilePathsReady && m_sourceFilePaths.isEmpty()) {
         QDir dir(local()->sourceDir());
         if (dir.exists()) {
             SourceFilesSearchJob* metaJob = new SourceFilesSearchJob(local()->sourceDir());
@@ -481,7 +505,7 @@ void Project::projectOdfCreate()
     fi.absoluteDir().mkdir(trFolderName);
 
     QStringList args(odfPath);
-    args.append(fi.absoluteDir().absoluteFilePath(trFolderName) % '/' % fi.baseName() % QLatin1String(".xlf"));
+    args.append(fi.absoluteDir().absoluteFilePath(trFolderName) + '/' + fi.baseName() + QLatin1String(".xlf"));
     qCDebug(LOKALIZE_LOG) << args;
     QProcess::execute(odf2xliff, args);
 
@@ -490,7 +514,7 @@ void Project::projectOdfCreate()
 
     emit closed();
 
-    Project::instance()->load(fi.absoluteDir().absoluteFilePath(trFolderName) + QLatin1String("/index.lokalize"), targetLangCode, fi.baseName() % '-' % targetLangCode);
+    Project::instance()->load(fi.absoluteDir().absoluteFilePath(trFolderName) + QLatin1String("/index.lokalize"), targetLangCode, fi.baseName() + '-' + targetLangCode);
 
     emit fileOpenRequested(args.at(1), true);
 }

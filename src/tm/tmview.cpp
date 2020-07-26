@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -45,7 +46,6 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QDir>
-#include <QSignalMapper>
 #include <QTimer>
 #include <QToolTip>
 #include <QMenu>
@@ -149,7 +149,7 @@ TMView::TMView(QWidget* parent, Catalog* catalog, const QVector<QAction*>& actio
     setWidget(m_browser);
 
     m_browser->document()->setDefaultStyleSheet(QStringLiteral("p.close_match { font-weight:bold; }"));
-    m_browser->viewport()->setBackgroundRole(QPalette::Background);
+    m_browser->viewport()->setBackgroundRole(QPalette::Window);
 
     QTimer::singleShot(0, this, &TMView::initLater);
     connect(m_catalog, QOverload<const QString &>::of(&Catalog::signalFileLoaded), this, &TMView::slotFileLoaded);
@@ -160,7 +160,7 @@ TMView::~TMView()
 #if QT_VERSION >= 0x050500
     int i = m_jobs.size();
     while (--i >= 0)
-        TM::threadPool()->cancel(m_jobs.at(i));
+        TM::threadPool()->tryTake(m_jobs.at(i));
 #endif
 }
 
@@ -168,21 +168,15 @@ void TMView::initLater()
 {
     setAcceptDrops(true);
 
-    QSignalMapper* signalMapper_insert = new QSignalMapper(this);
-    QSignalMapper* signalMapper_remove = new QSignalMapper(this);
     int i = m_actions_insert.size();
     while (--i >= 0) {
-        connect(m_actions_insert.at(i), &QAction::triggered, signalMapper_insert, QOverload<>::of(&QSignalMapper::map));
-        signalMapper_insert->setMapping(m_actions_insert.at(i), i);
+        connect(m_actions_insert.at(i), &QAction::triggered, this, [this, i] { slotUseSuggestion(i); });
     }
 
     i = m_actions_remove.size();
     while (--i >= 0) {
-        connect(m_actions_remove.at(i), &QAction::triggered, signalMapper_remove, QOverload<>::of(&QSignalMapper::map));
-        signalMapper_remove->setMapping(m_actions_remove.at(i), i);
+        connect(m_actions_remove.at(i), &QAction::triggered, this, [this, i] { slotRemoveSuggestion(i); });
     }
-    connect(signalMapper_insert, QOverload<int>::of(&QSignalMapper::mapped), this, &TMView::slotUseSuggestion);
-    connect(signalMapper_remove, QOverload<int>::of(&QSignalMapper::mapped), this, &TMView::slotRemoveSuggestion);
 
     setToolTip(i18nc("@info:tooltip", "Double-click any word to insert it into translation"));
 
@@ -225,7 +219,7 @@ void TMView::slotFileLoaded(const QString& filePath)
 #if QT_VERSION >= 0x050500
     int i = m_jobs.size();
     while (--i >= 0)
-        TM::threadPool()->cancel(m_jobs.at(i));
+        TM::threadPool()->tryTake(m_jobs.at(i));
 #endif
     m_jobs.clear();
 
@@ -357,7 +351,7 @@ void TMView::slotNewEntryDisplayed(const DocPosition& pos)
 #if QT_VERSION >= 0x050500
     int i = m_jobs.size();
     while (--i >= 0)
-        TM::threadPool()->cancel(m_currentSelectJob);
+        TM::threadPool()->tryTake(m_currentSelectJob);
 #endif
 
     //update DB
@@ -389,8 +383,8 @@ void TMView::displayFromCache()
 
 void TMView::slotSuggestionsCame(SelectJob* j)
 {
-    QTime time;
-    time.start();
+//     QTime time;
+//     time.start();
 
     SelectJob& job = *j;
     job.deleteLater();
@@ -408,7 +402,7 @@ void TMView::slotSuggestionsCame(SelectJob* j)
     //check if this is an additional query, from secondary DBs
     if (job.m_dbName != projectID) {
         job.m_entries += m_entries;
-        qSort(job.m_entries.begin(), job.m_entries.end(), qGreater<TMEntry>());
+        std::sort(job.m_entries.begin(), job.m_entries.end(), std::greater<TMEntry>());
         const int limit = qMin(Settings::suggCount(), job.m_entries.size());
         const int minScore = Settings::suggScore() * 100;
         int i = job.m_entries.size() - 1;
@@ -484,9 +478,9 @@ void TMView::slotSuggestionsCame(SelectJob* j)
         //result.replace("&","&amp;");
         //result.replace("<","&lt;");
         //result.replace(">","&gt;");
-        result.replace(QLatin1String("{KBABELADD}"), QStringLiteral("<font style=\"background-color:") % Settings::addColor().name() % QStringLiteral(";color:black\">"));
+        result.replace(QLatin1String("{KBABELADD}"), QStringLiteral("<font style=\"background-color:") + Settings::addColor().name() + QStringLiteral(";color:black\">"));
         result.replace(QLatin1String("{/KBABELADD}"), QLatin1String("</font>"));
-        result.replace(QLatin1String("{KBABELDEL}"), QStringLiteral("<font style=\"background-color:") % Settings::delColor().name() % QStringLiteral(";color:black\">"));
+        result.replace(QLatin1String("{KBABELDEL}"), QStringLiteral("<font style=\"background-color:") + Settings::delColor().name() + QStringLiteral(";color:black\">"));
         result.replace(QLatin1String("{/KBABELDEL}"), QLatin1String("</font>"));
         result.replace(QLatin1String("\\n"), QLatin1String("\\n<br>"));
         result.replace(QLatin1String("\\n"), QLatin1String("\\n<br>"));
@@ -693,18 +687,18 @@ CatalogString TM::targetAdapted(const TMEntry& entry, const CatalogString& ref)
     //QString english=entry.english;
 
 
-    QRegExp rxAdd(QLatin1String("<font style=\"background-color:[^>]*") % Settings::addColor().name() % QLatin1String("[^>]*\">([^>]*)</font>"));
-    QRegExp rxDel(QLatin1String("<font style=\"background-color:[^>]*") % Settings::delColor().name() % QLatin1String("[^>]*\">([^>]*)</font>"));
+    QRegExp rxAdd(QLatin1String("<font style=\"background-color:[^>]*") + Settings::addColor().name() + QLatin1String("[^>]*\">([^>]*)</font>"));
+    QRegExp rxDel(QLatin1String("<font style=\"background-color:[^>]*") + Settings::delColor().name() + QLatin1String("[^>]*\">([^>]*)</font>"));
     //rxAdd.setMinimal(true);
     //rxDel.setMinimal(true);
 
     //first things first
     int pos = 0;
     while ((pos = rxDel.indexIn(diff, pos)) != -1)
-        diff.replace(pos, rxDel.matchedLength(), "\tKBABELDEL\t" % rxDel.cap(1) % "\t/KBABELDEL\t");
+        diff.replace(pos, rxDel.matchedLength(), "\tKBABELDEL\t" + rxDel.cap(1) + "\t/KBABELDEL\t");
     pos = 0;
     while ((pos = rxAdd.indexIn(diff, pos)) != -1)
-        diff.replace(pos, rxAdd.matchedLength(), "\tKBABELADD\t" % rxAdd.cap(1) % "\t/KBABELADD\t");
+        diff.replace(pos, rxAdd.matchedLength(), "\tKBABELADD\t" + rxAdd.cap(1) + "\t/KBABELADD\t");
 
     diff.replace(QStringLiteral("&lt;"), QStringLiteral("<"));
     diff.replace(QStringLiteral("&gt;"), QStringLiteral(">"));
@@ -774,7 +768,7 @@ CatalogString TM::targetAdapted(const TMEntry& entry, const CatalogString& ref)
 //BEGIN BEGIN HANDLING
     QRegExp rxNonTranslatable;
     if (tryMarkup)
-        rxNonTranslatable.setPattern(QStringLiteral("^((") % entry.markupExpr % QStringLiteral(")|(\\W|\\d)+)+"));
+        rxNonTranslatable.setPattern(QStringLiteral("^((") + entry.markupExpr + QStringLiteral(")|(\\W|\\d)+)+"));
     else
         rxNonTranslatable.setPattern(QStringLiteral("^(\\W|\\d)+"));
 
@@ -845,7 +839,7 @@ CatalogString TM::targetAdapted(const TMEntry& entry, const CatalogString& ref)
 //END BEGIN HANDLING
 //BEGIN END HANDLING
     if (tryMarkup)
-        rxNonTranslatable.setPattern(QStringLiteral("((") % entry.markupExpr % QStringLiteral(")|(\\W|\\d)+)+$"));
+        rxNonTranslatable.setPattern(QStringLiteral("((") + entry.markupExpr + QStringLiteral(")|(\\W|\\d)+)+$"));
     else
         rxNonTranslatable.setPattern(QStringLiteral("(\\W|\\d)+$"));
 

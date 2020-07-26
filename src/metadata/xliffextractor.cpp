@@ -3,6 +3,7 @@
 
     Copyright (C) 2011 Albert Astals Cid <aacid@kde.org>
     Copyright (C) 2015 Nick Shaforostoff <shaforostoff@gmail.com>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -21,16 +22,11 @@
 
 #include "xliffextractor.h"
 
-#include "lokalize_debug.h"
-
-#include "catalog.h"
 #include <QFile>
 #include <QXmlInputSource>
-#include <fstream>
 
-XliffExtractor::XliffExtractor()
-{
-}
+#include "lokalize_debug.h"
+#include "catalog/catalog.h"
 
 class XliffHandler: public QXmlDefaultHandler
 {
@@ -98,7 +94,7 @@ bool XliffHandler::startElement(const QString&, const QString& localName, const 
 
         QString currentLastTranslator;
         if (contactNameString.length() && contactEmailString.length())
-            currentLastTranslator = contactNameString % " <" % contactEmailString % ">";
+            currentLastTranslator = contactNameString + " <" + contactEmailString + ">";
         else if (contactNameString.length())
             currentLastTranslator = contactNameString;
         else if (contactEmailString.length())
@@ -144,11 +140,12 @@ bool XliffHandler::characters(const QString& ch)
 }
 
 
-void XliffExtractor::extract(const QString& filePath, FileMetaData& m)
+FileMetaData XliffExtractor::extract(const QString& filePath)
 {
     QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-        return;
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return {};
+    }
 
     QXmlInputSource source(&file);
     QXmlSimpleReader xmlReader;
@@ -162,6 +159,7 @@ void XliffExtractor::extract(const QString& filePath, FileMetaData& m)
 
 
     //TODO WordCount
+    FileMetaData m;
     m.fuzzy      = handler.fuzzy;
     m.translated = handler.total - handler.untranslated - handler.fuzzy;
     m.untranslated = handler.untranslated;
@@ -177,4 +175,6 @@ void XliffExtractor::extract(const QString& filePath, FileMetaData& m)
 
     m.lastTranslator = handler.lastTranslator.length() ? handler.lastTranslator : handler.lastTranslator_fallback;
     m.translationDate = handler.lastDate.isValid() ? handler.lastDate.toString(Qt::ISODate) : handler.lastDateString_fallback;
+
+    return m;
 }

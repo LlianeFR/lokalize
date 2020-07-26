@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2011 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -45,7 +46,7 @@ class LokalizeUnitCmd: public QUndoCommand
 {
 public:
     LokalizeUnitCmd(Catalog *catalog, const DocPosition& pos, const QString& name);
-    ~LokalizeUnitCmd() override {}
+    ~LokalizeUnitCmd() override = default;
     void undo() override;
     void redo() override;
     DocPosition pos()const
@@ -71,7 +72,7 @@ class LokalizeTargetCmd: public LokalizeUnitCmd
 {
 public:
     LokalizeTargetCmd(Catalog *catalog, const DocPosition& pos, const QString& name);
-    ~LokalizeTargetCmd() override {}
+    ~LokalizeTargetCmd() override = default;
     void undo() override;
     void redo() override;
 protected:
@@ -88,7 +89,7 @@ class InsTextCmd: public LokalizeTargetCmd
 {
 public:
     InsTextCmd(Catalog *catalog, const DocPosition& pos, const QString& str);
-    ~InsTextCmd() override {}
+    ~InsTextCmd() override = default;
     int id() const override
     {
         return Insert;
@@ -105,7 +106,7 @@ class DelTextCmd: public LokalizeTargetCmd
 {
 public:
     DelTextCmd(Catalog *catalog, const DocPosition& pos, const QString& str);
-    ~DelTextCmd() override {}
+    ~DelTextCmd() override = default;
     int id() const override
     {
         return Delete;
@@ -122,7 +123,7 @@ class SetStateCmd: public LokalizeUnitCmd
 private:
     SetStateCmd(Catalog *catalog, const DocPosition& pos, TargetState state);
 public:
-    ~SetStateCmd() override {}
+    ~SetStateCmd() override = default;
 
     int id() const override
     {
@@ -144,7 +145,7 @@ class InsTagCmd: public LokalizeTargetCmd
 public:
     /// offset is taken from @a tag and not from @a pos
     InsTagCmd(Catalog *catalog, const DocPosition& pos, const InlineTag& tag);
-    ~InsTagCmd() override {}
+    ~InsTagCmd() override = default;
     int id() const override
     {
         return InsertTag;
@@ -164,7 +165,7 @@ class DelTagCmd: public LokalizeTargetCmd
 {
 public:
     DelTagCmd(Catalog *catalog, const DocPosition& pos);
-    ~DelTagCmd() override {}
+    ~DelTagCmd() override = default;
     int id() const override
     {
         return DeleteTag;
@@ -185,7 +186,7 @@ class SetNoteCmd: public LokalizeUnitCmd
 public:
     /// @a pos.form is note number
     SetNoteCmd(Catalog *catalog, const DocPosition& pos, const Note& note);
-    ~SetNoteCmd() override {}
+    ~SetNoteCmd() override = default;
     int id() const override
     {
         return SetNote;
@@ -205,7 +206,7 @@ class UpdatePhaseCmd: public QUndoCommand
 public:
     /// @a pos.form is note number
     UpdatePhaseCmd(Catalog *catalog, const Phase& phase);
-    ~UpdatePhaseCmd() override {}
+    ~UpdatePhaseCmd() override = default;
     int id() const override
     {
         return UpdatePhase;
@@ -223,7 +224,7 @@ class SetEquivTransCmd: public LokalizeTargetCmd
 {
 public:
     SetEquivTransCmd(Catalog *catalog, const DocPosition& pos, bool equivTrans);
-    ~SetEquivTransCmd() override {}
+    ~SetEquivTransCmd() override = default;
     int id() const override
     {
         return EquivTrans;

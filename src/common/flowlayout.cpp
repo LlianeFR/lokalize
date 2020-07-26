@@ -3,6 +3,7 @@
 
   Copyright (C) 2007 by Nick Shaforostoff <shafff@ukr.net>
   Copyright (C) 2004-2007 Trolltech ASA. All rights reserved.
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -53,7 +54,7 @@ FlowLayout::FlowLayout(User user,
     , m_receiver(signalingWidget)
 {
     setSizeConstraint(QLayout::SetMinAndMaxSize);
-    setMargin(margin);
+    setContentsMargins(margin, margin, margin, margin);
     setSpacing(spacing);
 
     if (user == glossary) {
@@ -120,7 +121,7 @@ int FlowLayout::count() const
 }
 Qt::Orientations FlowLayout::expandingDirections() const
 {
-    return 0;
+    return {};
 }
 bool FlowLayout::hasHeightForWidth() const
 {

@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -193,7 +194,7 @@ int MergeCatalog::loadFromUrl(const QString& filePath)
             while (--k >= 0)
                 scores << calcMatchItem(i, DocPosition(entries.at(k)));
 
-            qSort(scores.begin(), scores.end(), qGreater<MatchItem>());
+            std::sort(scores.begin(), scores.end(), std::greater<MatchItem>());
 
             m_map[i.entry] = scores.first().mergeEntry;
             backMap.insert(scores.first().mergeEntry, i.entry);
@@ -218,7 +219,7 @@ int MergeCatalog::loadFromUrl(const QString& filePath)
         foreach (int value, basePositions)
             scores << calcMatchItem(DocPosition(value), mergePosition);
 
-        qSort(scores.begin(), scores.end(), qGreater<MatchItem>());
+        std::sort(scores.begin(), scores.end(), std::greater<MatchItem>());
         int i = scores.size();
         while (--i > 0) {
             //qCDebug(LOKALIZE_LOG)<<"erasing"<<scores.at(i).baseEntry<<m_map[scores.at(i).baseEntry]<<",m_map["<<scores.at(i).baseEntry<<"]=-1";

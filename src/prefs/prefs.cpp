@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2011 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -37,6 +38,7 @@
 #include "ui_prefs_general.h"
 #include "ui_prefs_appearance.h"
 #include "ui_prefs_pology.h"
+#include "ui_prefs_languagetool.h"
 #include "ui_prefs_tm.h"
 #include "ui_prefs_projectmain.h"
 #include "ui_prefs_project_advanced.h"
@@ -112,12 +114,21 @@ void SettingsController::showSettingsDialog()
     connect(ui_prefs_identity.DefaultLangCode, QOverload<int>::of(&KComboBox::activated), ui_prefs_identity.kcfg_DefaultLangCode, &LangCodeSaver::setLangCode);
     ui_prefs_identity.kcfg_DefaultLangCode->hide();
 
+    connect(ui_prefs_identity.kcfg_overrideLangTeam, &QCheckBox::toggled, ui_prefs_identity.kcfg_userLangTeam, &QLineEdit::setEnabled);
+    connect(ui_prefs_identity.kcfg_overrideLangTeam, &QCheckBox::toggled, ui_prefs_identity.kcfg_userLangTeam, &QLineEdit::focusWidget);
+
     dialog->addPage(w, i18nc("@title:tab", "Identity"), "preferences-desktop-user");
 
 //General
     w = new QWidget(dialog);
     Ui_prefs_general ui_prefs_general;
     ui_prefs_general.setupUi(w);
+    connect(ui_prefs_general.kcfg_CustomEditorEnabled, &QCheckBox::toggled, ui_prefs_general.kcfg_CustomEditorCommand, &QLineEdit::setEnabled);
+    ui_prefs_general.kcfg_CustomEditorCommand->setEnabled(Settings::self()->customEditorEnabled());
+    //Set here to avoid I18N_ARGUMENT_MISSING if set in ui file
+    ui_prefs_general.kcfg_CustomEditorCommand->setToolTip(i18n(
+                "The following parameters are available\n%1 - Path of the source file\n%2 - Line number"
+                , QStringLiteral("%1"), QStringLiteral("%2")));
     dialog->addPage(w, i18nc("@title:tab", "General"), "preferences-system-windows");
 
 //Editor
@@ -143,6 +154,12 @@ void SettingsController::showSettingsDialog()
     Ui_prefs_pology ui_prefs_pology;
     ui_prefs_pology.setupUi(w);
     dialog->addPage(w, i18nc("@title:tab", "Pology"), "preferences-desktop-filetype-association");
+
+//LanguageTool
+    w = new QWidget(dialog);
+    Ui_prefs_languagetool ui_prefs_languagetool;
+    ui_prefs_languagetool.setupUi(w);
+    dialog->addPage(w, i18nc("@title:tab", "LanguageTool"), "lokalize");
 
     connect(dialog, &KConfigDialog::settingsChanged, this, &SettingsController::generalSettingsChanged);
 
@@ -244,7 +261,7 @@ bool SettingsController::projectCreate()
     //TODO ask-n-save
     QDir projectFolder = QFileInfo(path).absoluteDir();
     QString projectId = projectFolder.dirName();
-    if (projectFolder.cdUp()) projectId = projectFolder.dirName() % '-' % projectId;;
+    if (projectFolder.cdUp()) projectId = projectFolder.dirName() + '-' + projectId;;
     Project::instance()->load(path, QString(), projectId);
     //Project::instance()->setDefaults(); //NOTE will this be an obstacle?
     //Project::instance()->setProjectID();
@@ -294,6 +311,13 @@ void SettingsController::projectConfigure()
     ui_prefs_projectmain.poBaseDir->setUrl(QUrl::fromLocalFile(p.poDir()));
     ui_prefs_projectmain.glossaryTbx->setUrl(QUrl::fromLocalFile(p.glossaryPath()));
 
+    auto kcfg_ProjLangTeam = ui_prefs_projectmain.kcfg_ProjLangTeam;
+    connect(ui_prefs_projectmain.kcfg_LanguageSource, static_cast<void(KComboBox::*)(int)>(&KComboBox::currentIndexChanged),
+    this, [kcfg_ProjLangTeam](int index) {
+        kcfg_ProjLangTeam->setEnabled(static_cast<Project::LangSource>(index) == Project::LangSource::Project);
+    });
+    connect(ui_prefs_projectmain.kcfg_LanguageSource, static_cast<void(KComboBox::*)(const QString &)>(&KComboBox::currentIndexChanged),
+            this, [kcfg_ProjLangTeam] { kcfg_ProjLangTeam->setFocus(); });
 
 
 
@@ -320,7 +344,7 @@ void SettingsController::projectConfigure()
     w = new QWidget(dialog);
     QVBoxLayout* layout = new QVBoxLayout(w);
     layout->setSpacing(6);
-    layout->setMargin(11);
+    layout->setContentsMargins(11, 11, 11, 11);
 
 
     //m_projectActionsEditor=new Kross::ActionCollectionEditor(Kross::Manager::self().actionCollection()->collection(Project::instance()->projectID()),w);

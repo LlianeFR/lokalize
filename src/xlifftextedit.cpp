@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -32,6 +33,9 @@
 #include "prefs.h"
 #include "project.h"
 #include "completionstorage.h"
+#include "languagetoolmanager.h"
+#include "languagetoolresultjob.h"
+#include "languagetoolparser.h"
 
 #include <klocalizedstring.h>
 #include <kcompletionbox.h>
@@ -49,7 +53,9 @@
 #include <QMouseEvent>
 #include <QToolTip>
 #include <QScrollBar>
-
+#include <QElapsedTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 inline static QImage generateImage(const QString& str, const QFont& font)
 {
@@ -75,7 +81,7 @@ class MyCompletionBox: public KCompletionBox
 {
 public:
     MyCompletionBox(QWidget* p): KCompletionBox(p) {}
-    ~MyCompletionBox() override {}
+    ~MyCompletionBox() override = default;
     QSize sizeHint() const override;
 
     bool eventFilter(QObject*, QEvent*) override;   //reimplemented to deliver more keypresses to XliffTextEdit
@@ -117,6 +123,7 @@ TranslationUnitTextEdit::TranslationUnitTextEdit(Catalog* catalog, DocPosition::
     , m_completionBox(0)
     , m_cursorSelectionStart(0)
     , m_cursorSelectionEnd(0)
+    , m_languageToolTimer(new QTimer(this))
 {
     setReadOnly(part == DocPosition::Source);
     setUndoRedoEnabled(false);
@@ -127,10 +134,12 @@ TranslationUnitTextEdit::TranslationUnitTextEdit(Catalog* catalog, DocPosition::
 
     if (part == DocPosition::Target) {
         connect(document(), &QTextDocument::contentsChange, this, &TranslationUnitTextEdit::contentsChanged);
-        connect(this, &TranslationUnitTextEdit::cursorPositionChanged, this, &TranslationUnitTextEdit::emitCursorPositionChanged);
+        connect(this, &KTextEdit::cursorPositionChanged, this, &TranslationUnitTextEdit::emitCursorPositionChanged);
+        connect(m_languageToolTimer, &QTimer::timeout, this, &TranslationUnitTextEdit::launchLanguageTool);
     }
     connect(catalog, QOverload<>::of(&Catalog::signalFileLoaded), this, &TranslationUnitTextEdit::fileLoaded);
     //connect (Project::instance(), &Project::configChanged, this, &TranslationUnitTextEdit::projectConfigChanged);
+    m_languageToolTimer->setSingleShot(true);
 }
 
 void TranslationUnitTextEdit::setSpellCheckingEnabled(bool enable)
@@ -161,16 +170,23 @@ void TranslationUnitTextEdit::fileLoaded()
 
     QLocale langLocale(langCode);
     // First try to use a locale name derived from the language code
-    m_highlighter->setCurrentLanguage(langLocale.name());
+    m_highlighter->setCurrentLanguage(langLocale.name());    
+    //qCWarning(LOKALIZE_LOG) << "Attempting to set highlighting for " << m_part << " as " << langLocale.name();
     // If that fails, try to use the language code directly
     if (m_highlighter->currentLanguage() != langLocale.name() || m_highlighter->currentLanguage().isEmpty()) {
         m_highlighter->setCurrentLanguage(langCode);
-        if (m_highlighter->currentLanguage() != langCode && langCode.length() > 2)
+        //qCWarning(LOKALIZE_LOG) << "Attempting to set highlighting for " << m_part << " as " << langCode;
+        if (m_highlighter->currentLanguage() != langCode && langCode.length() > 2) {
             m_highlighter->setCurrentLanguage(langCode.left(2));
+            //qCWarning(LOKALIZE_LOG) << "Attempting to set highlighting for " << m_part << " as " << langCode.left(2);
+        }
     }
+    m_highlighter->setAutoDetectLanguageDisabled(m_highlighter->spellCheckerFound());
+    //qCWarning(LOKALIZE_LOG) << "Spellchecker found "<<m_highlighter->spellCheckerFound()<< " as "<<m_highlighter->currentLanguage();
+    //setSpellCheckingLanguage(m_highlighter->currentLanguage());
     //"i use an english locale while translating kde pot files from english to hebrew" Bug #181989
     Qt::LayoutDirection targetLanguageDirection = Qt::LeftToRight;
-    static QLocale::Language rtlLanguages[] = {QLocale::Arabic, QLocale::Hebrew, QLocale::Urdu, QLocale::Persian, QLocale::Pashto};
+    static const QLocale::Language rtlLanguages[] = {QLocale::Arabic, QLocale::Hebrew, QLocale::Urdu, QLocale::Persian, QLocale::Pashto};
     int i = sizeof(rtlLanguages) / sizeof(QLocale::Arabic);
     while (--i >= 0 && langLocale.language() != rtlLanguages[i])
         ;
@@ -182,7 +198,7 @@ void TranslationUnitTextEdit::fileLoaded()
         return;
 
     //"Some language do not need space between words. For example Chinese."
-    static QLocale::Language noSpaceLanguages[] = {QLocale::Chinese};
+    static const QLocale::Language noSpaceLanguages[] = {QLocale::Chinese};
     i = sizeof(noSpaceLanguages) / sizeof(QLocale::Chinese);
     while (--i >= 0 && langLocale.language() != noSpaceLanguages[i])
         ;
@@ -295,6 +311,9 @@ void TranslationUnitTextEdit::setContent(const CatalogString& catStr, const Cata
     else
         //reflectApprovementState() does this for Target
         m_highlighter->rehighlight(); //explicitly because the signals were disabled
+    if (Settings::self()->languageToolDelay() > 0) {
+        m_languageToolTimer->start(Settings::self()->languageToolDelay() * 1000);
+    }
 }
 
 #if 0
@@ -513,6 +532,10 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
         } else if (m_completionBox)
             m_completionBox->hide();
         //qCWarning(LOKALIZE_LOG)<<"finish";
+        //Start LanguageToolTimer
+        if (Settings::self()->languageToolDelay() > 0) {
+            m_languageToolTimer->start(Settings::self()->languageToolDelay() * 1000);
+        }
     }
 
 
@@ -601,7 +624,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
             QByteArray a;
             QDataStream out(&a, QIODevice::WriteOnly);
             QVariant v;
-            qVariantSetValue<CatalogString>(v, catalogString);
+            v.setValue<CatalogString>(catalogString);
             out << v;
             mimeData->setData(LOKALIZE_XLIFF_MIMETYPE, a);
         }
@@ -684,7 +707,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
         } else {
             QString text = source->text();
             text.remove(TAGRANGE_IMAGE_SYMBOL);
-            insertPlainText(text);
+            insertPlainTextWithCursorCheck(text);
         }
     }
 
@@ -776,9 +799,9 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
             else
                 KTextEdit::keyPressEvent(keyEvent);
         } else if (keyEvent->key() == Qt::Key_Space && (keyEvent->modifiers()&Qt::AltModifier))
-            insertPlainText(QChar(0x00a0U));
+            insertPlainTextWithCursorCheck(QChar(0x00a0U));
         else if (keyEvent->key() == Qt::Key_Minus && (keyEvent->modifiers()&Qt::AltModifier))
-            insertPlainText(QChar(0x0000AD));
+            insertPlainTextWithCursorCheck(QChar(0x0000AD));
 //BEGIN clever editing
         else if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
             if (m_completionBox && m_completionBox->isVisible()) {
@@ -822,7 +845,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
             }
             if (!str.isEmpty()) {
                 ins += '\n';
-                insertPlainText(ins);
+                insertPlainTextWithCursorCheck(ins);
             } else
                 KTextEdit::keyPressEvent(keyEvent);
         } else if (m_catalog->type() != Gettext)
@@ -867,7 +890,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
             }
             KTextEdit::keyPressEvent(keyEvent);
         } else if (keyEvent->key() == Qt::Key_Tab)
-            insertPlainText(QStringLiteral("\\t"));
+            insertPlainTextWithCursorCheck(QStringLiteral("\\t"));
         else
             KTextEdit::keyPressEvent(keyEvent);
 //END clever editing
@@ -875,10 +898,15 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
 
     void TranslationUnitTextEdit::keyReleaseEvent(QKeyEvent * e) {
         if ((e->key() == Qt::Key_Alt) && m_currentUnicodeNumber >= 32) {
-            insertPlainText(QChar(m_currentUnicodeNumber));
+            insertPlainTextWithCursorCheck(QChar(m_currentUnicodeNumber));
             m_currentUnicodeNumber = 0;
         } else
             KTextEdit::keyReleaseEvent(e);
+    }
+
+    void TranslationUnitTextEdit::insertPlainTextWithCursorCheck(const QString & text) {
+        insertPlainText(text);
+        KTextEdit::ensureCursorVisible();
     }
 
     QString TranslationUnitTextEdit::toPlainText() {
@@ -893,8 +921,6 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
         */
         return text;
     }
-
-
 
     void TranslationUnitTextEdit::emitCursorPositionChanged() {
         emit cursorPositionChanged(textCursor().columnNumber());
@@ -977,7 +1003,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
                 return;
             }
         }
-        if (textCursor().hasSelection()) {
+        if (textCursor().hasSelection() && m_part == DocPosition::Target) {
             QMenu menu;
             menu.addAction(i18nc("@action:inmenu", "Lookup selected text in translation memory"));
             if (menu.exec(event->globalPos()))
@@ -985,7 +1011,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
             return;
         }
 
-        if (m_part != DocPosition::Target)
+        if (m_part != DocPosition::Source && m_part != DocPosition::Target)
             return;
 
         KTextEdit::contextMenuEvent(event);
@@ -1013,33 +1039,48 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
 //     QAction* spellchecking=menu.addAction();
 //     event->accept();
     }
+    void TranslationUnitTextEdit::zoomRequestedSlot(qreal fontSize) {
+        QFont curFont = font();
+        curFont.setPointSizeF(fontSize);
+        setFont(curFont);
+    }
 
     void TranslationUnitTextEdit::wheelEvent(QWheelEvent * event) {
         //Override default KTextEdit behavior which ignores Ctrl+wheelEvent when the field is not ReadOnly (i/o zooming)
         if (m_part == DocPosition::Target && !Settings::mouseWheelGo() && (event->modifiers() == Qt::ControlModifier)) {
             float delta = event->angleDelta().y() / 120.f;
             zoomInF(delta);
+            //Also zoom in the source
+            emit zoomRequested(font().pointSizeF());
             return;
         }
 
-        if (m_part == DocPosition::Source || !Settings::mouseWheelGo())
+        if (m_part == DocPosition::Source || !Settings::mouseWheelGo()) {
+            if (event->modifiers() == Qt::ControlModifier) {
+                float delta = event->angleDelta().y() / 120.f;
+                zoomInF(delta);
+                //Also zoom in the target
+                emit zoomRequested(font().pointSizeF());
+                return;
+            }
             return KTextEdit::wheelEvent(event);
+        }
 
         switch (event->modifiers()) {
         case Qt::ControlModifier:
-            if (event->delta() > 0)
+            if (event->angleDelta().y() > 0)
                 emit gotoPrevFuzzyRequested();
             else
                 emit gotoNextFuzzyRequested();
             break;
         case Qt::AltModifier:
-            if (event->delta() > 0)
+            if (event->angleDelta().y() > 0)
                 emit gotoPrevUntranslatedRequested();
             else
                 emit gotoNextUntranslatedRequested();
             break;
         case Qt::ControlModifier + Qt::ShiftModifier:
-            if (event->delta() > 0)
+            if (event->angleDelta().y() > 0)
                 emit gotoPrevFuzzyUntrRequested();
             else
                 emit gotoNextFuzzyUntrRequested();
@@ -1047,7 +1088,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
         case Qt::ShiftModifier:
             return KTextEdit::wheelEvent(event);
         default:
-            if (event->delta() > 0)
+            if (event->angleDelta().y() > 0)
                 emit gotoPrevRequested();
             else
                 emit gotoNextRequested();
@@ -1073,7 +1114,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
 #ifdef Q_OS_MAC
         if (event->type() == QEvent::InputMethod) {
             QInputMethodEvent* e = static_cast<QInputMethodEvent*>(event);
-            insertPlainText(e->commitString());
+            insertPlainTextWithCursorCheck(e->commitString());
             e->accept();
             return true;
         }
@@ -1091,6 +1132,8 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
             QString tip;
 
             QString langCode = m_highlighter->currentLanguage();
+
+            //qCWarning(LOKALIZE_LOG) << "Spellchecker found "<<m_highlighter->spellCheckerFound()<< " as "<<m_highlighter->currentLanguage();
             bool nospell = langCode.isEmpty();
             if (nospell)
                 langCode = m_part == DocPosition::Source ? m_catalog->sourceLangCode() : m_catalog->targetLangCode();
@@ -1099,14 +1142,36 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
             tip += langCode;
             if (l.language() != QLocale::C) tip += ')';
             if (nospell)
-                tip += QLatin1String(" - ") % i18n("no spellcheck available");
+                tip += QLatin1String(" - ") + i18n("no spellcheck available");
             QToolTip::showText(helpEvent->globalPos(), tip);
         }
         return KTextEdit::event(event);
     }
 
+    void TranslationUnitTextEdit::slotLanguageToolFinished(const QString & result) {
+        LanguageToolParser parser;
+        const QJsonDocument doc = QJsonDocument::fromJson(result.toUtf8());
+        const QJsonObject fields = doc.object();
+        emit languageToolChanged(parser.parseResult(fields, toPlainText()));
+    }
 
+    void TranslationUnitTextEdit::slotLanguageToolError(const QString & str) {
+        emit languageToolChanged(i18n("An error was reported: %1", str));
+    }
 
+    void TranslationUnitTextEdit::launchLanguageTool()     {
+        if (toPlainText().length() == 0)
+            return;
+
+        LanguageToolResultJob *job = new LanguageToolResultJob(this);
+        job->setUrl(LanguageToolManager::self()->languageToolCheckPath());
+        job->setNetworkAccessManager(LanguageToolManager::self()->networkAccessManager());
+        job->setText(toPlainText().toHtmlEscaped().replace(QStringLiteral("%"), QStringLiteral("%25")));
+        job->setLanguage(m_catalog->targetLangCode());
+        connect(job, &LanguageToolResultJob::finished, this, &TranslationUnitTextEdit::slotLanguageToolFinished);
+        connect(job, &LanguageToolResultJob::error, this, &TranslationUnitTextEdit::slotLanguageToolError);
+        job->start();
+    }
     void TranslationUnitTextEdit::tagMenu()     {
         doTag(false);
     }
@@ -1162,7 +1227,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
 
                 if (posInMsgStr != -1 && (posInMsgStr = target.indexOf(tag.cap(0), posInMsgStr)) == -1) {
                     if (immediate) {
-                        insertPlainText(txt->text());
+                        insertPlainTextWithCursorCheck(txt->text());
                         return;
                     }
                     menu.setActiveAction(txt);
@@ -1175,7 +1240,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
             //txt=menu.exec(_msgidEdit->mapToGlobal(QPoint(0,0)));
             txt = menu.exec(mapToGlobal(cursorRect().bottomRight()));
             if (txt)
-                insertPlainText(txt->text());
+                insertPlainTextWithCursorCheck(txt->text());
         }
     }
 
@@ -1206,13 +1271,13 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
                 out = '\n';
             out += QLatin1String("<othercredit role=\\\"translator\\\">\n"
                                  "<firstname></firstname><surname></surname>\n"
-                                 "<affiliation><address><email>") % Settings::authorEmail() % QLatin1String("</email></address>\n"
+                                 "<affiliation><address><email>") + Settings::authorEmail() + QLatin1String("</email></address>\n"
                                          "</affiliation><contrib></contrib></othercredit>");
         } else if (text.startsWith(QLatin1String("CREDIT_FOR_TRANSLATORS"))) {
             if (!document()->isEmpty())
                 out = '\n';
-            out += QLatin1String("<para>") % Settings::authorLocalizedName() % '\n' %
-                   QLatin1String("<email>") % Settings::authorEmail() % QLatin1String("</email></para>");
+            out += QLatin1String("<para>") + Settings::authorLocalizedName() + '\n' +
+                   QLatin1String("<email>") + Settings::authorEmail() + QLatin1String("</email></para>");
         }
         //END KDE specific part
 
@@ -1258,7 +1323,6 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
 
 
     void TranslationUnitTextEdit::doCompletion(int pos) {
-        QTime a; a.start();
         QString target = m_catalog->targetWithTags(m_currentPos).string;
         int sp = target.lastIndexOf(CompletionStorage::instance()->rxSplit, pos - 1);
         int len = (pos - sp) - 1;
@@ -1281,7 +1345,7 @@ void insertContent(QTextCursor& cursor, const CatalogString& catStr, const Catal
             m_completionBox->resize(m_completionBox->sizeHint());
             QPoint p = cursorRect().bottomRight();
             if (p.x() < 10) //workaround Qt bug
-                p.rx() += textCursor().verticalMovementX() + QFontMetrics(currentFont()).width('W');
+                p.rx() += textCursor().verticalMovementX() + QFontMetrics(currentFont()).horizontalAdvance('W');
             m_completionBox->move(viewport()->mapToGlobal(p));
         } else
             m_completionBox->hide();

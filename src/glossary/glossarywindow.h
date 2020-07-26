@@ -2,6 +2,7 @@
   This file is part of Lokalize
 
   Copyright (C) 2007-2014 by Nick Shaforostoff <shafff@ukr.net>
+                2018-2019 by Simon Depiets <sdepiets@gmail.com>
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -76,7 +77,7 @@ class GlossaryWindow: public KMainWindow
     Q_OBJECT
 public:
     explicit GlossaryWindow(QWidget *parent = nullptr);
-    ~GlossaryWindow() override;
+    ~GlossaryWindow() override = default;
     bool queryClose() override;
 
 public slots:
@@ -117,7 +118,7 @@ class GlossaryTreeView: public QTreeView
     Q_OBJECT
 public:
     explicit GlossaryTreeView(QWidget *parent = nullptr);
-    ~GlossaryTreeView() override {}
+    ~GlossaryTreeView() override = default;
 
     void currentChanged(const QModelIndex& current, const QModelIndex& previous) override;
     void selectRow(int i);
